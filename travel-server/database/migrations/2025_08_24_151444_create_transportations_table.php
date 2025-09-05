@@ -17,8 +17,9 @@ return new class extends Migration
             // $table->string('provider'); // e.g., Company name
             $table->string('pickup_location'); // Departure location
             $table->string('dropoff_location'); // Arrival location
-            $table->dateTime('departure_date');
-            $table->dateTime('arrival_date');
+            $table->dateTime('transportationDate');
+            $table->string('routeTo');   // ← هنا أضفت عمود route
+            $table->string('routeFrom'); // ← هنا أضفت عمود routeFrom
             $table->decimal('passenger_count');
             $table->enum('status', ['Confimed', 'Pending', 'Cancelled'])->default('Pending');
             $table->text('notes')->nullable();

@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('duration');
             $table->string('country');
             $table->enum('status',['Pending', 'Approved', 'Rejected'])->default('Pending'); // e.g., Pending, Approved, Rejected
+            $table->text('applicationDetials');
             $table->text('notes')->nullable();
             $table->softDeletes(); // ← هنا أضفت عمود deleted_at للسوفت ديليت
             $table->timestamps();

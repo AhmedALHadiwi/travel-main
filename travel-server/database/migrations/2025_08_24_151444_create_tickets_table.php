@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('event_name');
             $table->dateTime('event_date');
             $table->decimal('tickets_count');
+            $table->decimal('quantity');
             $table->string('seat_category');
             $table->enum('status', ['Confimed', 'Pending', 'Cancelled'])->default('Pending');
             $table->text('notes')->nullable();

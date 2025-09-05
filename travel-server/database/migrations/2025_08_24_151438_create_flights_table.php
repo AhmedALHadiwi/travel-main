@@ -19,6 +19,7 @@ return new class extends Migration
             $table->dateTime('departure_date');
             $table->dateTime('arrival_date');
             $table->string('airline');
+            $table->text('passangerInfo');
             $table->enum('status', ['Confimed', 'Pending', 'Cancelled'])->default('Pending');
             $table->text('notes')->nullable();
             $table->softDeletes(); // ← هنا أضفت عمود deleted_at للسوفت ديليت

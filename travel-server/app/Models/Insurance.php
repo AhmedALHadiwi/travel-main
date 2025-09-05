@@ -16,6 +16,7 @@ class Insurance extends Model
         'start_date',
         'end_date',
         'coverage_details',
+        'insured_persons',
         'status',
         'notes',
     ];

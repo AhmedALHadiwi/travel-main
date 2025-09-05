@@ -14,7 +14,6 @@ return new class extends Migration
         Schema::create('suppliers', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('phone');
             $table->string('payment_status');
             $table->softDeletes();
             $table->timestamps();

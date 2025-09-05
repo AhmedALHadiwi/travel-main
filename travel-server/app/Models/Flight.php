@@ -18,6 +18,7 @@ class Flight extends Model
         'to_airport',
         'airline',
         'status',
+        'passangerInfo',
         'notes',
     ];
     public function reservations()

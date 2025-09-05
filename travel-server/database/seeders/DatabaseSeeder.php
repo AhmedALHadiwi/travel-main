@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
     {
         // استدعاء Seeder الخاص بالـ Admin
         $this->call(AdminUserSeeder::class);
+        $this->call(CompanySeeder::class);
 
         // لو عايز تعمل يوزر تجريبي (اختياري)
         // User::factory()->create([

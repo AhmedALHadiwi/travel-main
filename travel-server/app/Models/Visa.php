@@ -16,6 +16,7 @@ class Visa extends Model
         'application_date',
         'duration',
         'status',
+        'applicationDetials',
         'notes',
     ];
 

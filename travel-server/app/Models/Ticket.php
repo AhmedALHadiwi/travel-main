@@ -15,6 +15,7 @@ class Ticket extends Model
         'event_date',
         'status',
         'tickets_count',
+        'quantity',
         'seat_category',
         'notes',
     ];

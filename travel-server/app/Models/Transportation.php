@@ -18,6 +18,8 @@ class Transportation extends Model
         'pickup_location',
         'dropoff_location',
         'passenger_count',
+        'routeTo',
+        'routeFrom',
         'notes',
     ];
 

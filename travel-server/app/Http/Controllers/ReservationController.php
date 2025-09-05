@@ -2,11 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Appointment;
+use App\Models\Cruise;
 use App\Models\Customer;
 use App\Models\Flight;
+use App\Models\Hotel;
+use App\Models\Insurance;
 use App\Models\Reservation;
 use App\Http\Requests\StoreReservationRequest;
 use App\Http\Requests\UpdateReservationRequest;
+use App\Models\Ticket;
+use App\Models\Transportation;
+use App\Models\Visa;
 use Illuminate\Http\Request;
 
 class ReservationController extends Controller
@@ -16,12 +23,9 @@ class ReservationController extends Controller
      */
     public function index()
     {
-        $reservations = Reservation::with('customer','reservable')->get()->each(function($reservation) {
+        $reservations = Reservation::with('customer', 'reservable')->get()->each(function ($reservation) {
             $reservation->reservable_type = str_replace('App\\Models\\', '', $reservation->reservable_type);
         });
-        if ($reservations->isEmpty()) {
-            return response()->json(['message' => 'No reservations found'], 404);
-        }
         return response()->json($reservations, 200);
     }
 
@@ -42,7 +46,7 @@ class ReservationController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'phoneNumber' => 'required|string|max:20',
-            'type' => 'required|string|max:50|in:Flight,Hotel,Cruise,Transportation,Visa,Insurance,Ticket,Appointment',
+            'type' => 'required|string|max:50|in:Flight,Hotel,Cruise,Transportation,Visa,Insurance,Tickets,Appointment',
         ]);
         $customer = Customer::Create(
             [
@@ -54,25 +58,27 @@ class ReservationController extends Controller
         switch ($type) {
             case 'Flight':
                 $request->validate([
-                    'flight_number' => 'required|string|max:50',
-                    'departure_date' => 'required|date',
-                    'arrival_date' => 'required|date',
-                    'from_airport' => 'required|string|max:50',
-                    'to_airport' => 'required|string|max:50',
+                    'flightnumber' => 'required|string|max:50',
+                    'departureDate' => 'required|date',
+                    'arrivalDate' => 'required|date',
+                    'from' => 'required|string|max:50',
+                    'to' => 'required|string|max:50',
                     'airline' => 'required|string|max:50',
                     'status' => 'string|max:50|in:Confimed,Pending,Cancelled',
                     'notes' => 'required|string',
+                    'passangerInfo' => 'required|string',
                 ]);
                 $flight = new \App\Models\Flight();
-                $flight->flight_number = $request->flight_number;
-                $flight->departure_date = $request->departure_date;
-                $flight->arrival_date = $request->arrival_date;
-                $flight->from_airport = $request->from_airport;
-                $flight->to_airport = $request->to_airport;
+                $flight->flight_number = $request->flightnumber;
+                $flight->departure_date = $request->departureDate;
+                $flight->arrival_date = $request->arrivalDate;
+                $flight->from_airport = $request->from;
+                $flight->to_airport = $request->to;
                 $flight->airline = $request->airline;
                 // $flight->status = $request->status;
                 $flight->status = 'Pending';
                 $flight->notes = $request->notes;
+                $flight->passangerInfo = $request->passangerInfo;
                 $flight->save();
                 $reservable = $flight;
                 break;
@@ -103,26 +109,26 @@ class ReservationController extends Controller
                 break;
             case 'Cruise':
                 $request->validate([
-                    'cruise_name' => 'required|string|max:255',
-                    'ship_name' => 'required|string|max:255',
-                    'cabin_type' => 'required|string|max:50',
-                    'departure_date' => 'required|date',
-                    'arrival_date' => 'required|date',
-                    'departure_port' => 'required|string|max:255',
-                    'arrival_port' => 'required|string|max:255',
-                    'cruise_line' => 'required|string|max:255',
+                    'cruise' => 'required|string|max:255',
+                    'ship' => 'required|string|max:255',
+                    'cabin' => 'required|string|max:50',
+                    'departureDate' => 'required|date',
+                    'returnDate' => 'required|date',
+                    'departureport' => 'required|string|max:255',
+                    'returnPort' => 'required|string|max:255',
+                    'cruiseLine' => 'required|string|max:255',
                     'status' => 'string|max:50|in:Confirmed,Pending,Cancelled',
                     'notes' => 'nullable|string',
                 ]);
                 $cruise = new \App\Models\Cruise();
-                $cruise->cruise_name = $request->cruise_name;
-                $cruise->ship_name = $request->ship_name;
-                $cruise->cabin_type = $request->cabin_type;
-                $cruise->departure_date = $request->departure_date;
-                $cruise->arrival_date = $request->arrival_date;
-                $cruise->departure_port = $request->departure_port;
-                $cruise->arrival_port = $request->arrival_port;
-                $cruise->cruise_line = $request->cruise_line;
+                $cruise->cruise_name = $request->cruise;
+                $cruise->ship_name = $request->ship;
+                $cruise->cabin_type = $request->cabin;
+                $cruise->departure_date = $request->departureDate;
+                $cruise->arrival_date = $request->returnDate;
+                $cruise->departure_port = $request->departureport;
+                $cruise->arrival_port = $request->returnPort;
+                $cruise->cruise_line = $request->cruiseLine;
                 $cruise->status = $request->status ?? 'Pending';
                 $cruise->notes = $request->notes;
                 $cruise->save();
@@ -130,23 +136,25 @@ class ReservationController extends Controller
                 break;
             case 'Transportation':
                 $request->validate([
-                    'transport_type' => 'required|string|max:50',
-                    'departure_date' => 'required|date',
-                    'arrival_date' => 'required|date',
-                    'pickup_location' => 'required|string|max:255',
-                    'dropoff_location' => 'required|string|max:255',
-                    'passenger_count' => 'required|integer|min:1',
+                    'type' => 'required|string|max:50',
+                    'transportationDate' => 'required|date',
+                    'pickupLocation' => 'required|string|max:255',
+                    'dropoffLocation' => 'required|string|max:255',
+                    'routeTo' => 'required|string|max:255',   // ← هنا أضفت التحقق من routeTo
+                    'routeFrom' => 'required|string|max:255', // ← هنا أضفت التحقق من routeFrom
+                    'passengerCount' => 'required|integer|min:1',
                     'status' => 'string|max:50|in:Confirmed,Pending,Cancelled',
                     'notes' => 'nullable|string',
                 ]);
 
                 $transport = new \App\Models\Transportation();
-                $transport->transport_type = $request->transport_type;
-                $transport->departure_date = $request->departure_date;
-                $transport->arrival_date = $request->arrival_date;
-                $transport->pickup_location = $request->pickup_location;
-                $transport->dropoff_location = $request->dropoff_location;
-                $transport->passenger_count = $request->passenger_count;
+                $transport->transport_type = $request->type;
+                $transport->transportationDate = $request->transportationDate;
+                $transport->pickup_location = $request->pickupLocation;
+                $transport->dropoff_location = $request->dropoffLocation;
+                $transport->routeTo = $request->routeTo;       // ← هنا أضفت routeTo
+                $transport->routeFrom = $request->routeFrom; // ← هنا أضفت routeFrom
+                $transport->passenger_count = $request->passengerCount;
                 $transport->status = $request->status ?? 'Pending';
                 $transport->notes = $request->notes;
                 $transport->save();
@@ -155,8 +163,9 @@ class ReservationController extends Controller
             case 'Visa':
                 $request->validate([
                     'country' => 'required|string|max:255',
-                    'visa_type' => 'required|string|max:50',
-                    'application_date' => 'required|date',
+                    'visa' => 'required|string|max:50',
+                    'applicationDate' => 'required|date',
+                    'applicationDetials' => 'required|string',
                     'duration' => 'required|integer|min:1',
                     'status' => 'sometimes|string|max:50|in:Approved,Pending,Rejected',
                     'notes' => 'required|string',
@@ -164,66 +173,69 @@ class ReservationController extends Controller
 
                 $visa = new \App\Models\Visa();
                 $visa->country = $request->country;
-                $visa->visa_type = $request->visa_type;
-                $visa->application_date = $request->application_date;
+                $visa->visa_type = $request->visa;
+                $visa->application_date = $request->applicationDate;
                 $visa->duration = $request->duration;
                 $visa->status = $request->status ?? 'Pending';
                 $visa->notes = $request->notes;
+                $visa->applicationDetials = $request->applicationDetials;
                 $visa->save();
                 $reservable = $visa;
                 break;
             case 'Insurance':
                 $request->validate([
-                    'insurance_type' => 'required|string|max:50',
+                    'insurance' => 'required|string|max:50',
                     'provider' => 'required|string|max:255',
-                    'start_date' => 'required|date',
-                    'end_date' => 'required|date|after_or_equal:start_date',
-                    'coverage_details' => 'required|string',
+                    'startDate' => 'required|date',
+                    'endDate' => 'required|date|after_or_equal:start_date',
+                    'insuredPersons' => 'required|string',
                     'status' => 'string|max:50|in:Active,Expired,Cancelled',
                     'notes' => 'nullable|string'
                 ]);
                 $insurance = new \App\Models\Insurance();
-                $insurance->insurance_type = $request->insurance_type;
+                $insurance->insurance_type = $request->insurance;
                 $insurance->provider = $request->provider;
-                $insurance->start_date = $request->start_date;
-                $insurance->end_date = $request->end_date;
-                $insurance->coverage_details = $request->coverage_details;
+                $insurance->start_date = $request->startDate;
+                $insurance->end_date = $request->endDate;
+                $insurance->insured_persons = $request->insuredPersons;
                 $insurance->status = $request->status ?? 'Active';
                 $insurance->notes = $request->notes;
                 $insurance->save();
                 $reservable = $insurance;
                 break;
-            case 'Ticket':
+            case 'Tickets':
                 $request->validate([
-                    'event_name' => 'required|string|max:255',
-                    'event_date' => 'required|date',
+                    'event' => 'required|string|max:255',
+                    'eventDate' => 'required|date',
                     'status' => 'string|max:50|in:Confirmed,Pending,Cancelled',
-                    'tickets_count' => 'required|integer|min:1',
-                    'seat_category' => 'required|string|max:50',
+                    'ticketCount' => 'required|integer|min:1',
+                    'seatcategory' => 'required|string|max:50',
                     'notes' => 'nullable|string',
+                    'quantity' => 'required|integer|min:1',
                 ]);
                 $tickets = new \App\Models\Ticket();
-                $tickets->event_name = $request->event_name;
-                $tickets->event_date = $request->event_date;
+                $tickets->event_name = $request->event;
+                $tickets->event_date = $request->eventDate;
                 // $tickets->status = $request->status;
                 $tickets->status = 'Pending';
-                $tickets->tickets_count = $request->tickets_count;
-                $tickets->seat_category = $request->seat_category;
+                $tickets->tickets_count = $request->ticketCount;
+                $tickets->quantity = $request->quantity;
+                $tickets->seat_category = $request->seatcategory;
                 $tickets->notes = $request->notes;
                 $tickets->save();
                 $reservable = $tickets;
                 break;
             case 'Appointment':
                 $request->validate([
-                    'appointment_type' => 'required|string|max:50',
-                    'appointment_date' => 'required|date',
+                    'appointment' => 'required|string|max:50',
+                    'applicationDate' => 'required|date',
                     'status' => 'string|max:50|in:Completed,Scheduled,Cancelled',
                     'location' => 'required|string|max:255',
                     'notes' => 'nullable|string',
                 ]);
                 $appointment = new \App\Models\Appointment();
-                $appointment->appointment_type = $request->appointment_type;
-                $appointment->appointment_date = $request->appointment_date;
+                $appointment->appointment_type = $request->appointment;
+                $appointment->appointment_date = $request->applicationDate;
                 $appointment->status = $request->status ?? 'Scheduled';
                 $appointment->location = $request->location;
                 $appointment->notes = $request->notes;
@@ -234,15 +246,14 @@ class ReservationController extends Controller
                 return response()->json(['error' => 'Invalid type'], 400);
         }
 
-        if (in_array($type, ['Flight', 'Hotel', 'Cruise', 'Ticket', 'Transportation'])) {
+        if (in_array($type, ['Flight', 'Hotel', 'Cruise', 'Tickets', 'Transportation'])) {
             $request->validate([
                 'supplierName' => 'required|string|max:255',
-                'supplier_phone' => 'string|max:20',
                 'payment_status' => 'sometimes|string|in:Paid,Unpaid,Partial',
             ]);
             $supplier = new \App\Models\Supplier();
             $supplier->name = $request->supplierName;
-            $supplier->phone = $request->supplier_phone??'012000000012';
+            $supplier->phone = $request->SupplierPhoneNumber ?? '012000000012';
             $supplier->payment_status = $request->payment_status ?? 'Unpaid';
             $supplier->save();
         }
@@ -259,6 +270,7 @@ class ReservationController extends Controller
         $reservation = new Reservation();
         $reservation->user_id = auth()->id(); // Assuming you have authentication set up
         $reservation->customer_id = $customer->id;
+        $reservation->supplier_id = $supplier->id ?? null;
         $reservation->reservable_id = $reservable->id;
         $reservation->reservable_type = get_class($reservable);
         // $reservation->status = $request->status;
@@ -270,7 +282,7 @@ class ReservationController extends Controller
         $reservation->notes = $request->notes;
         $reservation->save();
 
-        $reservation = $reservation->with('customer','reservable')->where('id',$reservation->id)->first();
+        $reservation = $reservation->with('customer', 'reservable')->where('id', $reservation->id)->first();
         if ($reservation) {
             return response()->json(['message' => 'Reservation created successfully', 'reservation' => $reservation], 201);
         } else {
@@ -307,180 +319,193 @@ class ReservationController extends Controller
 
     public function update(Request $request, $id)
     {
-        $reservation = Reservation::with('customer', 'reservable')->findOrFail($id);
+        $reservation = Reservation::findOrFail($id);
 
         // Update customer (same as store)
         $request->validate([
-            'customerName'  => 'sometimes|string|max:255',
+            'name' => 'sometimes|string|max:255',
             'phoneNumber' => 'sometimes|string|max:20',
+            'type' => 'sometimes|string|max:50|in:Flight,Hotel,Cruise,Transportation,Visa,Insurance,Tickets,Appointment',
+
         ]);
         $reservation->customer->update([
-            'name'  => $request->customerName ?? $reservation->customer->name,
+            'name' => $request->name ?? $reservation->customer->name,
             'phone' => $request->phoneNumber ?? $reservation->customer->phone,
         ]);
 
-        // Determine type from request or by using class basename of reservable type
-        $type = $request->type ?? class_basename($reservation->reservable_type);
+        // Determine type from request or existing
 
+        $reservable_type = str_replace('App\\Models\\', '', $reservation->reservable_type);
+        $reservable_id = $reservation->reservable->id;
+        $type = $request->type ?? $reservable_type;
+        // return $type;
         switch ($type) {
             case 'Flight':
-                // Only update the attributes that exist in the store method for Flight
                 $request->validate([
-                    'flight_number'  => 'sometimes|string|max:50',
-                    'departure_date' => 'sometimes|date',
-                    'arrival_date'   => 'sometimes|date',
-                    'from_airport'   => 'sometimes|string|max:50',
-                    'to_airport'     => 'sometimes|string|max:50',
-                    'airline'        => 'sometimes|string|max:50',
-                    'notes'          => 'sometimes|string',
+                    'flightnumber' => 'sometimes|string|max:50',
+                    'departureDate' => 'sometimes|date',
+                    'arrivalDate' => 'sometimes|date',
+                    'from' => 'sometimes|string|max:50',
+                    'to' => 'sometimes|string|max:50',
+                    'airline' => 'sometimes|string|max:50',
+                    'notes' => 'sometimes|string',
+                    'passangerInfo' => 'sometimes|string',
                 ]);
-                $flight = $reservation->reservable;
-                $flight->flight_number  = $request->flight_number ?? $flight->flight_number;
-                $flight->departure_date = $request->departure_date ?? $flight->departure_date;
-                $flight->arrival_date   = $request->arrival_date ?? $flight->arrival_date;
-                $flight->from_airport   = $request->from_airport ?? $flight->from_airport;
-                $flight->to_airport     = $request->to_airport ?? $flight->to_airport;
-                $flight->airline        = $request->airline ?? $flight->airline;
-                // Do not update status as it is set to 'Pending' in the store function
+
+                $flight = Flight::find($reservable_id);
+                $flight->flight_number = $request->flightnumber ?? $flight->flight_number;
+                $flight->departure_date = $request->departureDate ?? $flight->departure_date;
+                $flight->arrival_date = $request->arrivalDate ?? $flight->arrival_date;
+                $flight->from_airport = $request->from ?? $flight->from_airport;
+                $flight->to_airport = $request->to ?? $flight->to_airport;
+                $flight->airline = $request->airline ?? $flight->airline;
                 $flight->notes = $request->notes ?? $flight->notes;
+                $flight->passangerInfo = $request->passangerInfo ?? $flight->passangerInfo;
                 $flight->save();
                 break;
 
             case 'Hotel':
                 $request->validate([
-                    'hotel_name'     => 'sometimes|string|max:255',
-                    'booking_number' => 'sometimes|string|max:50',
-                    'check_in_date'  => 'sometimes|date',
+                    'hotelName' => 'sometimes|string|max:255',
+                    'BookingNumber' => 'sometimes|string|max:50',
+                    'check_in_date' => 'sometimes|date',
                     'check_out_date' => 'sometimes|date|after:check_in_date',
-                    'number_of_guests' => 'sometimes|integer|min:1',
-                    'number_of_rooms'  => 'sometimes|integer|min:1',
-                    'room_type'        => 'sometimes|string|max:50',
-                    'notes'            => 'nullable|string',
+                    'NumberOfGeust' => 'sometimes|integer|min:1',
+                    'NumberOfRoom' => 'sometimes|integer|min:1',
+                    'roomType' => 'sometimes|string|max:50',
+                    'notes' => 'nullable|string',
                 ]);
-                $hotel = $reservation->reservable;
-                $hotel->name           = $request->hotel_name ?? $hotel->name;
-                $hotel->booking_number = $request->booking_number ?? $hotel->booking_number;
-                $hotel->check_in_date  = $request->check_in_date ?? $hotel->check_in_date;
+                $hotel = Hotel::find($reservable_id);
+                $hotel->name = $request->hotelName ?? $hotel->name;
+                $hotel->booking_number = $request->BookingNumber ?? $hotel->booking_number;
+                $hotel->check_in_date = $request->check_in_date ?? $hotel->check_in_date;
                 $hotel->check_out_date = $request->check_out_date ?? $hotel->check_out_date;
-                $hotel->number_of_guests = $request->number_of_guests ?? $hotel->number_of_guests;
-                $hotel->number_of_rooms  = $request->number_of_rooms ?? $hotel->number_of_rooms;
-                $hotel->room_type      = $request->room_type ?? $hotel->room_type;
-                $hotel->notes          = $request->notes ?? $hotel->notes;
+                $hotel->number_of_guests = $request->NumberOfGeust ?? $hotel->number_of_guests;
+                $hotel->number_of_rooms = $request->NumberOfRoom ?? $hotel->number_of_rooms;
+                $hotel->room_type = $request->roomType ?? $hotel->room_type;
+                $hotel->notes = $request->notes ?? $hotel->notes;
                 $hotel->save();
                 break;
 
             case 'Cruise':
                 $request->validate([
-                    'cruise_name'    => 'sometimes|string|max:255',
-                    'ship_name'      => 'sometimes|string|max:255',
-                    'cabin_type'     => 'sometimes|string|max:50',
-                    'departure_date' => 'sometimes|date',
-                    'arrival_date'   => 'sometimes|date',
-                    'departure_port' => 'sometimes|string|max:255',
-                    'arrival_port'   => 'sometimes|string|max:255',
-                    'cruise_line'    => 'sometimes|string|max:255',
-                    'notes'          => 'nullable|string',
+                    'cruise' => 'sometimes|string|max:255',
+                    'ship' => 'sometimes|string|max:255',
+                    'cabin' => 'sometimes|string|max:50',
+                    'departureDate' => 'sometimes|date',
+                    'returnDate' => 'sometimes|date',
+                    'departureport' => 'sometimes|string|max:255',
+                    'returnPort' => 'sometimes|string|max:255',
+                    'cruiseLine' => 'sometimes|string|max:255',
+                    'notes' => 'nullable|string',
                 ]);
-                $cruise = $reservation->reservable;
-                $cruise->cruise_name    = $request->cruise_name ?? $cruise->cruise_name;
-                $cruise->ship_name      = $request->ship_name ?? $cruise->ship_name;
-                $cruise->cabin_type     = $request->cabin_type ?? $cruise->cabin_type;
-                $cruise->departure_date = $request->departure_date ?? $cruise->departure_date;
-                $cruise->arrival_date   = $request->arrival_date ?? $cruise->arrival_date;
-                $cruise->departure_port = $request->departure_port ?? $cruise->departure_port;
-                $cruise->arrival_port   = $request->arrival_port ?? $cruise->arrival_port;
-                $cruise->cruise_line    = $request->cruise_line ?? $cruise->cruise_line;
-                $cruise->notes          = $request->notes ?? $cruise->notes;
+                $cruise = Cruise::find($reservable_id);
+                $cruise->cruise_name = $request->cruise ?? $cruise->cruise_name;
+                $cruise->ship_name = $request->ship ?? $cruise->ship_name;
+                $cruise->cabin_type = $request->cabin ?? $cruise->cabin_type;
+                $cruise->departure_date = $request->departureDate ?? $cruise->departure_date;
+                $cruise->arrival_date = $request->returnDate ?? $cruise->arrival_date;
+                $cruise->departure_port = $request->departureport ?? $cruise->departure_port;
+                $cruise->arrival_port = $request->returnPort ?? $cruise->arrival_port;
+                $cruise->cruise_line = $request->cruiseLine ?? $cruise->cruise_line;
+                $cruise->notes = $request->notes ?? $cruise->notes;
                 $cruise->save();
                 break;
 
             case 'Transportation':
                 $request->validate([
-                    'transport_type'  => 'sometimes|string|max:50',
-                    'departure_date'  => 'sometimes|date',
-                    'arrival_date'    => 'sometimes|date',
-                    'pickup_location' => 'sometimes|string|max:255',
-                    'dropoff_location'=> 'sometimes|string|max:255',
-                    'passenger_count' => 'sometimes|integer|min:1',
-                    'notes'           => 'nullable|string',
+                    'type' => 'sometimes|string|max:50',
+                    'transportationDate' => 'sometimes|date',
+                    'pickupLocation' => 'sometimes|string|max:255',
+                    'dropoffLocation' => 'sometimes|string|max:255',
+                    'routeTo' => 'sometimes|string|max:255',
+                    'routeFrom' => 'sometimes|string|max:255',
+                    'passengerCount' => 'sometimes|integer|min:1',
+                    'notes' => 'nullable|string',
+
                 ]);
-                $transport = $reservation->reservable;
-                $transport->transport_type  = $request->transport_type ?? $transport->transport_type;
-                $transport->departure_date  = $request->departure_date ?? $transport->departure_date;
-                $transport->arrival_date    = $request->arrival_date ?? $transport->arrival_date;
-                $transport->pickup_location = $request->pickup_location ?? $transport->pickup_location;
-                $transport->dropoff_location= $request->dropoff_location ?? $transport->dropoff_location;
-                $transport->passenger_count = $request->passenger_count ?? $transport->passenger_count;
-                $transport->notes           = $request->notes ?? $transport->notes;
+                $transport = Transportation::find($reservable_id);
+                $transport->transport_type = $request->type ?? $transport->transport_type;
+                $transport->transportationDate = $request->transportationDate ?? $transport->transportationDate;
+                $transport->pickup_location = $request->pickupLocation ?? $transport->pickup_location;
+                $transport->dropoff_location = $request->dropoffLocation ?? $transport->dropoff_location;
+                $transport->routeTo = $request->routeTo ?? $transport->routeTo;
+                $transport->routeFrom = $request->routeFrom ?? $transport->routeFrom;
+                $transport->passenger_count = $request->passengerCount ?? $transport->passenger_count;
+                $transport->notes = $request->notes ?? $transport->notes;
                 $transport->save();
                 break;
 
             case 'Visa':
                 $request->validate([
-                    'country'          => 'sometimes|string|max:255',
-                    'visa_type'        => 'sometimes|string|max:50',
-                    'application_date' => 'sometimes|date',
-                    'duration'         => 'sometimes|integer|min:1',
-                    'notes'            => 'sometimes|string',
+                    'country' => 'sometimes|string|max:255',
+                    'visa' => 'sometimes|string|max:50',
+                    'applicationDate' => 'sometimes|date',
+                    'duration' => 'sometimes|integer|min:1',
+                    'notes' => 'sometimes|string',
+                    'applicationDetials' => 'sometimes|string',
                 ]);
-                $visa = $reservation->reservable;
-                $visa->country          = $request->country ?? $visa->country;
-                $visa->visa_type        = $request->visa_type ?? $visa->visa_type;
-                $visa->application_date = $request->application_date ?? $visa->application_date;
-                $visa->duration         = $request->duration ?? $visa->duration;
-                $visa->notes            = $request->notes ?? $visa->notes;
+                $visa = Visa::find($reservable_id);
+                $visa->country = $request->country ?? $visa->country;
+                $visa->visa_type = $request->visa ?? $visa->visa_type;
+                $visa->application_date = $request->applicationDate ?? $visa->application_date;
+                $visa->duration = $request->duration ?? $visa->duration;
+                $visa->notes = $request->notes ?? $visa->notes;
+                $visa->notes = $request->applicationDetials ?? $visa->applicationDetials;
                 $visa->save();
                 break;
 
             case 'Insurance':
                 $request->validate([
-                    'insurance_type'  => 'sometimes|string|max:50',
-                    'provider'        => 'sometimes|string|max:255',
-                    'start_date'      => 'sometimes|date',
-                    'end_date'        => 'sometimes|date|after_or_equal:start_date',
-                    'coverage_details'=> 'sometimes|string',
-                    'notes'           => 'nullable|string',
+                    'insurance' => 'sometimes|string|max:50',
+                    'provider' => 'sometimes|string|max:255',
+                    'startDate' => 'sometimes|date',
+                    'endDate' => 'sometimes|date|after_or_equal:startDate',
+                    'insuredPersons' => 'sometimes|string',
+                    'notes' => 'nullable|string',
                 ]);
-                $insurance = $reservation->reservable;
-                $insurance->insurance_type  = $request->insurance_type ?? $insurance->insurance_type;
-                $insurance->provider        = $request->provider ?? $insurance->provider;
-                $insurance->start_date      = $request->start_date ?? $insurance->start_date;
-                $insurance->end_date        = $request->end_date ?? $insurance->end_date;
-                $insurance->coverage_details= $request->coverage_details ?? $insurance->coverage_details;
-                $insurance->notes           = $request->notes ?? $insurance->notes;
+                $insurance = Insurance::find($reservable_id);
+                $insurance->insurance_type = $request->insurance ?? $insurance->insurance_type;
+                $insurance->provider = $request->provider ?? $insurance->provider;
+                $insurance->start_date = $request->startDate ?? $insurance->start_date;
+                $insurance->end_date = $request->endDate ?? $insurance->end_date;
+                $insurance->insured_persons = $request->insuredPersons ?? $insurance->insured_persons;
+                $insurance->notes = $request->notes ?? $insurance->notes;
                 $insurance->save();
                 break;
 
             case 'Ticket':
-                // Only update the attributes that are defined in the store function
                 $request->validate([
-                    'event_name'    => 'sometimes|string|max:255',
-                    'event_date'    => 'sometimes|date',
-                    'tickets_count' => 'sometimes|integer|min:1',
-                    'seat_category' => 'sometimes|string|max:50',
-                    'notes'         => 'nullable|string',
+                    'event' => 'sometimes|string|max:255',
+                    'eventDate' => 'sometimes|date',
+                    'status' => 'string|max:50|in:Confirmed,Pending,Cancelled',
+                    'ticketCount' => 'sometimes|integer|min:1',
+                    'quantity' => 'sometimes|integer|min:1',
+                    'seatcategory' => 'sometimes|string|max:50',
+                    'notes' => 'nullable|string',
                 ]);
-                $ticket = $reservation->reservable;
-                $ticket->event_name    = $request->event_name ?? $ticket->event_name;
-                $ticket->event_date    = $request->event_date ?? $ticket->event_date;
-                $ticket->tickets_count = $request->tickets_count ?? $ticket->tickets_count;
-                $ticket->seat_category = $request->seat_category ?? $ticket->seat_category;
-                $ticket->notes         = $request->notes ?? $ticket->notes;
+                $ticket = Ticket::find($reservable_id);
+                $ticket->event_name = $request->event ?? $ticket->event_name;
+                $ticket->event_date = $request->eventDate ?? $ticket->event_date;
+                $ticket->tickets_count = $request->ticketCount ?? $ticket->tickets_count;
+                $ticket->quantity = $request->quantity ?? $ticket->quantity;
+                $ticket->seat_category = $request->seatcategory ?? $ticket->seat_category;
+                $ticket->notes = $request->notes ?? $ticket->notes;
                 $ticket->save();
                 break;
 
             case 'Appointment':
                 $request->validate([
-                    'appointment_type' => 'sometimes|string|max:50',
-                    'appointment_date' => 'sometimes|date',
-                    'location'         => 'sometimes|string|max:255',
-                    'notes'            => 'nullable|string',
+                    'appointment' => 'sometimes|string|max:50',
+                    'applicationDate' => 'sometimes|date',
+                    'location' => 'sometimes|string|max:255',
+                    'notes' => 'nullable|string',
                 ]);
-                $appointment = $reservation->reservable;
-                $appointment->appointment_type = $request->appointment_type ?? $appointment->appointment_type;
-                $appointment->appointment_date = $request->appointment_date ?? $appointment->appointment_date;
-                $appointment->location         = $request->location ?? $appointment->location;
-                $appointment->notes            = $request->notes ?? $appointment->notes;
+                $appointment = Appointment::find($reservable_id);
+                $appointment->appointment_type = $request->appointment ?? $appointment->appointment_type;
+                $appointment->appointment_date = $request->applicationDate ?? $appointment->appointment_date;
+                $appointment->location = $request->location ?? $appointment->location;
+                $appointment->notes = $request->notes ?? $appointment->notes;
                 $appointment->save();
                 break;
 
@@ -488,78 +513,67 @@ class ReservationController extends Controller
                 return response()->json(['error' => 'Invalid type'], 400);
         }
 
-        // Update supplier only for specific types as in store method
+        // Supplier update
         if (in_array($type, ['Flight', 'Hotel', 'Cruise', 'Ticket', 'Transportation'])) {
             $request->validate([
-                'supplier_name'  => 'sometimes|string|max:255',
-                'supplier_phone' => 'sometimes|string|max:20',
+                'supplierName' => 'sometimes|string|max:255',
+                'phoneNumber' => 'sometimes|string|max:20',
                 'payment_status' => 'sometimes|string|in:Paid,Unpaid,Partial',
             ]);
-            $supplier = \App\Models\Supplier::where('reservable_id', $reservation->reservable->id)->first();
+            $supplier = \App\Models\Supplier::find($reservation->supplier_id)->first();
             if ($supplier) {
-                $supplier->name           = $request->supplier_name ?? $supplier->name;
-                $supplier->phone          = $request->supplier_phone ?? $supplier->phone;
+                $supplier->name = $request->supplierName ?? $supplier->name;
+                $supplier->phone = $request->phoneNumber ?? $supplier->phone;
                 $supplier->payment_status = $request->payment_status ?? $supplier->payment_status;
                 $supplier->save();
             }
         }
 
-        // Update reservation values (only those attributes that exist in store)
+        // Update reservation values
         $request->validate([
-            'sell_price' => 'sometimes|numeric',
-            'cost'       => 'sometimes|numeric',
-            'fees'       => 'nullable|numeric',
+            'details.sell_price' => 'sometimes|numeric',
+            'details.cost' => 'sometimes|numeric',
+            'details.fees' => 'nullable|numeric',
+            'status' => 'string|in:Hold,Issued,Cancelled',
             'net_profit' => 'nullable|numeric',
-            'notes'      => 'nullable|string',
+            'notes' => 'nullable|string',
         ]);
         $reservation->update([
-            'sell_price' => $request->sell_price ?? $reservation->sell_price,
-            'cost'       => $request->cost ?? $reservation->cost,
-            'fees'       => $request->fees ?? $reservation->fees,
+            'sell_price' => $request->details['sell_price'] ?? $reservation->sell_price,
+            'cost' => $request->details['cost'] ?? $reservation->cost,
+            'fees' => $request->details['fees'] ?? $reservation->fees,
             'net_profit' => $request->net_profit ?? (
-                ($request->sell_price ?? $reservation->sell_price) -
-                ($request->cost ?? $reservation->cost) -
-                ($request->fees ?? $reservation->fees)
+                ($request->details['sell_price'] ?? $reservation->sell_price) -
+                ($request->details['cost'] ?? $reservation->cost) -
+                ($request->details['fees'] ?? $reservation->fees)
             ),
-            'notes'      => $request->notes ?? $reservation->notes,
+            'status' => $request->status ?? $reservation->status,
+            'notes' => $request->notes ?? $reservation->notes,
         ]);
 
         $updatedReservation = Reservation::with('customer', 'reservable')->find($reservation->id);
         return response()->json(['message' => 'Reservation updated successfully', 'reservation' => $updatedReservation], 200);
     }
 
-    // public function update(Request $request, $id)
-    // {
-    //     $reservation = Reservation::findOrFail($id);
-    //     // return $request;
-    //     $request->validate( [
-    //         'status' => 'string|in:Hold,Issued,Cancelled',
-    //         'notes' => 'nullable|string',
-    //         'sell_price' => 'numeric',
-    //         'cost' => 'numeric',
-    //         'fees' => 'nullable|numeric',
-    //         'net_profit' => 'nullable|numeric',
-    //     ]);
-    //     $reservation->update([
-    //         'status' => $request->status ?? $reservation->status,
-    //         'sell_price' => $request->sell_price ?? $reservation->sell_price,
-    //         'cost' => $request->cost ?? $reservation->cost,
-    //         'fees' => $request->fees ?? $reservation->fees,
-    //         'net_profit' => $request->net_profit ?? ($reservation->sell_price - $reservation->cost - $reservation->fees),
-    //         'notes' => $request->notes ?? $reservation->notes,
-    //         'updated_at' => now(),
-    //     ]);
-    //     if (!$reservation) {
-    //         return response()->json(['error' => 'Failed to update reservation'], 500);
-    //     }
-    //     return response()->json(['message' => 'Reservation updated successfully', 'reservation' => $reservation], 200);
-    //     // if ($reservation->status === $request->status) {
-    //     //     return response()->json(['message' => 'Reservation updated successfully', 'reservation' => $reservation], 200);
-    //     // } else {
-    //     //     return response()->json(['error' => 'Failed to update reservation'], 500);
-    //     // }
 
-    // }
+    public function update_status(Request $request, $id)
+    {
+        $reservation = Reservation::findOrFail($id);
+        // return $request;
+        $request->validate([
+            'status' => 'string|in:Hold,Issued,Cancelled',
+        ]);
+        $reservation->update([
+            'status' => $request->status ?? $reservation->status,
+        ]);
+
+        if ($reservation->status === $request->status) {
+            return response()->json(['message' => 'Reservation updated successfully', 'reservation' => $reservation], 200);
+        } else {
+            return response()->json(['error' => 'Failed to update reservation'], 500);
+        }
+
+    }
 
     /**
      * Remove the specified resource from storage.

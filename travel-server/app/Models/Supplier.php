@@ -18,7 +18,7 @@ class Supplier extends Model
     ];
     public function reservations()
     {
-        return $this->morphMany(Reservation::class, 'reservable');
+        return $this->hasMany(Reservation::class, 'reservable');
     }
 
 }

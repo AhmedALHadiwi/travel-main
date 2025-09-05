@@ -16,7 +16,7 @@ return new class extends Migration {
             $table->string('provider');
             $table->date('start_date');
             $table->date('end_date');
-            $table->text('coverage_details')->nullable();
+            $table->string('insured_persons')->nullable();
             $table->enum('status', ['Active', 'Expired', 'Cancelled'])->default('Active');
             $table->text('notes')->nullable();
             $table->softDeletes(); // ← هنا أضفت عمود deleted_at للسوفت ديليت
