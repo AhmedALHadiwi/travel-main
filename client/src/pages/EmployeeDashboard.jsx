@@ -79,26 +79,18 @@ export default function EmployeeDashboard() {
 
     // KPIs
     const kpis = useMemo(() => {
-        const totalSales = filtered.reduce((sum, r) => {
-            if (r.status === "Issued" || r.status === "Hold") {
-                return sum + Number(r.sell_price || 0);
-            }
-            return sum;
-            }, 0);
-        const refunded = filtered.reduce((sum, r) => {
-            if (r.status === "Cancelled") {
-                return sum + Number(r.sell_price || 0);
-            }
-            return sum + Number(r.refunded || 0);
-            }, 0);// لو السيرفر بيرجع refunded
-        const netProfit = filtered.reduce((sum, r) => {
-            if (r.status === "Issued" || r.status === "Hold") {
-                return sum + Number(r.net_profit || 0)
-            }
-            return sum;
-            }, 0);
-
-        return { totalSales, refunded, netProfit };
+        const totalSales = filtered.reduce((sum, r) => sum + (r.total || 0), 0);
+        const refunded = filtered.reduce((sum, r) => sum + (r.refunded || 0), 0);
+        const cost = filtered.reduce((sum, r) => sum + (r.cost || 0), 0);
+        const netProfit = totalSales - cost - refunded;
+        const counts = filtered.reduce(
+            (acc, r) => {
+                acc[r.status] = (acc[r.status] || 0) + 1;
+                return acc;
+            },
+            { Completed: 0, Pending: 0, Cancelled: 0 }
+        );
+        return { totalSales, refunded, netProfit, counts };
     }, [filtered]);
 
     const resetFilters = () => {

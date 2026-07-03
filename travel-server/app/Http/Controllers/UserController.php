@@ -41,8 +41,8 @@ class UserController extends Controller
             'bio' => 'nullable|min:10|max:100',
             'avatar_url' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
             'role_id' => 'required|integer',
-            'salary' => 'required|string',
-            'payment_method' => 'required|string',
+            // 'salary' => 'required|string',
+            // 'payment_method' => 'required|string',
                 ]);
 
                 if ($validation->fails()) {
@@ -81,8 +81,8 @@ class UserController extends Controller
                 $user->bio = $request->bio;
                 $user->status = $request->status;
                 $user->role_id = $request->role_id;
-                $user->salary = $request->salary;
-                $user->payment_method = $request->payment_method;
+                // $user->salary = $request->salary;
+                // $user->payment_method = $request->payment_method;
                 $user->save();
 
                 return response()->json([

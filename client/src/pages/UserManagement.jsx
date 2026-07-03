@@ -276,100 +276,108 @@ const UserManagement = () => {
     return { body: fd, isFormData: true };
   };
 
-  // ✅ FIXED: Save handler with proper email handling
+  // ✅ Enhanced Save handler with clean error handling
   const handleSave = async () => {
     const data = modal.data;
     const context = modal.context;
 
     try {
       let url = `${API_BASE}/users`;
-      let method = 'POST';
+      let method = "POST";
       let originalData = null;
 
-      if (context === 'user' && data.id) {
+      if (context === "user" && data.id) {
         url = `${API_BASE}/users/${data.id}`;
-        method = 'POST'; // Use POST with _method
-        // Find original user data
-        originalData = users.find(u => u.id === data.id);
-      } else if (context === 'role' && data.id) {
+        method = "POST"; // Use POST with _method
+        originalData = users.find((u) => u.id === data.id);
+      } else if (context === "role" && data.id) {
         url = `${API_BASE}/roles/${data.id}`;
-        method = 'POST';
-        originalData = roles.find(r => r.id === data.id);
-      } else if (context === 'role') {
+        method = "POST";
+        originalData = roles.find((r) => r.id === data.id);
+      } else if (context === "role") {
         url = `${API_BASE}/roles`;
-        method = 'POST';
+        method = "POST";
       }
 
       // Determine original method
-      const originalMethod = (context === 'user' && data.id) ? 'PUT' :
-        (context === 'role' && data.id) ? 'PUT' : 'POST';
+      const originalMethod =
+        context === "user" && data.id
+          ? "PUT"
+          : context === "role" && data.id
+            ? "PUT"
+            : "POST";
 
-      // console.log('=== DEBUG INFO ===');
-      // console.log('Modal type:', modal.type);
-      // console.log('Context:', context);
-      // console.log('Original Data:', originalData);
-      // console.log('Request Data:', data);
-      // console.log('URL:', url);
-      // console.log('Method:', originalMethod);
-
-      const { body, isFormData } = prepareRequestBody(data, originalMethod, originalData);
-
-      // Debug FormData contents
-      if (isFormData) {
-        // console.log('FormData contents:');
-        for (let [key, value] of body.entries()) {
-          // console.log(key, ':', value);
-        }
-      }
+      const { body, isFormData } = prepareRequestBody(
+        data,
+        originalMethod,
+        originalData
+      );
 
       const headers = {};
       if (!isFormData) {
-        headers['Content-Type'] = 'application/json';
-        headers['Accept'] = 'application/json';
+        headers["Content-Type"] = "application/json";
+        headers["Accept"] = "application/json";
       } else {
-        headers['Accept'] = 'application/json';
+        headers["Accept"] = "application/json";
       }
 
       const res = await fetch(url, { method, headers, body });
       const text = await res.text();
 
-      // console.log('Response Status:', res.status);
-      // console.log('Response Text:', text);
-
       let response;
       try {
-        response = text ? JSON.parse(text) : { status: false, message: 'Empty response' };
+        response = text
+          ? JSON.parse(text)
+          : { status: false, message: "Empty response" };
       } catch (e) {
-        // console.error('Failed to parse server response:', text);
         toast({
-          title: 'Invalid response from server',
-          description: 'Unable to parse server response.',
-          variant: 'destructive',
+          title: "Invalid response from server",
+          description: "Unable to parse server response.",
+          variant: "destructive",
         });
         return;
       }
 
       if (response.status) {
-        // ✅ FIXED: Enhanced success message
-        const action = data.id ? 'updated' : 'created';
-        const entityName = data.user_name || data.name || 'Item';
+        // ✅ Success
+        const action = data.id ? "updated" : "created";
+        const entityName = data.user_name || data.name || "Item";
 
         toast({
-          title: `${context === 'user' ? 'User' : 'Role'} ${action} successfully`,
-          description: `${entityName} has been ${action} successfully`
+          title: `${context === "user" ? "User" : "Role"} ${action} successfully`,
+          description: `${entityName} has been ${action} successfully`,
         });
 
         await fetchUsersAndRoles();
         setModal({ isOpen: false, type: null, data: null });
       } else {
-        const desc = response.errors ? JSON.stringify(response.errors) : response.message || 'Unknown error';
-        toast({ title: 'Error saving data', description: desc, variant: 'destructive' });
+        // ❌ Handle errors in a user-friendly way
+        let desc = "Unknown error";
+
+        if (response.errors) {
+          // Laravel validation errors (object of arrays)
+          desc = Object.values(response.errors)
+            .flat()
+            .join("\n");
+        } else if (response.message) {
+          desc = response.message;
+        }
+
+        toast({
+          title: "Error saving data",
+          description: desc,
+          variant: "destructive",
+        });
       }
     } catch (err) {
-      // console.error('Request Error:', err);
-      toast({ title: 'Request failed', description: err.message, variant: 'destructive' });
+      toast({
+        title: "Request failed",
+        description: err.message || "Something went wrong",
+        variant: "destructive",
+      });
     }
   };
+
 
   // Delete handler
   const handleDelete = async (id, context) => {

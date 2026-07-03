@@ -38,8 +38,8 @@ class AdminUserSeeder extends Seeder
                 'password' => Hash::make('password123'), // كلمة المرور
                 'role_id' => $role->id,
                 'remember_token' => \Str::random(10),
-                'salary' => 6000.00,
-                'payment_method' => 'bank_transfer',
+                // 'salary' => 6000.00,
+                // 'payment_method' => 'bank_transfer',
             ]
         );
     }

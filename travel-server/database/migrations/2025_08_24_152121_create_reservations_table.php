@@ -26,6 +26,8 @@ return new class extends Migration
             $table->decimal('fees');
             $table->decimal('net_profit');
             $table->text('notes')->nullable();
+            $table->text('reason_cancelled')->nullable();
+            $table->boolean('sent')->default(false);
             $table->timestamps();
             $table->softDeletes(); // ← هنا أضفت عمود deleted_at للسوفت ديليت
         });

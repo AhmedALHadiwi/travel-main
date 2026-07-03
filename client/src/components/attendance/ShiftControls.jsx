@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Play, Square, Coffee, Loader } from 'lucide-react';
+import { Play, Square, Coffee, Loader, PlayCircle, PauseCircle, StopCircle, CheckCircle } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -14,7 +14,6 @@ const ShiftControls = ({ shiftState, timers, handleShiftAction, shiftCount, last
   const { user } = useAuth();
   const { company } = useCompany();
 
-  // بدل boolean عام -> خلتها اسم الأكشن اللي بيحمل
   const [loadingAction, setLoadingAction] = useState(null);
 
   const onActionClick = async (action) => {
@@ -45,6 +44,28 @@ const ShiftControls = ({ shiftState, timers, handleShiftAction, shiftCount, last
   const breakTimeParts = formatSecondsToParts(timers.break);
   const lastShiftDurationParts = formatSecondsToParts(lastShiftDuration);
 
+  // 🎨 Status styles + labels + icons
+  const statusColors = {
+    not_started: "bg-gray-200 text-gray-700",
+    active: "bg-green-200 text-green-700",
+    on_break: "bg-yellow-200 text-yellow-800",
+    ended: "bg-red-200 text-red-700",
+  };
+
+  const statusLabels = {
+    not_started: "Offline",
+    active: "Online",
+    on_break: "On Break",
+    ended: "Ended",
+  };
+
+  const statusIcons = {
+    not_started: <StopCircle className="h-5 w-5 inline mr-1" />,
+    active: <PlayCircle className="h-5 w-5 inline mr-1" />,
+    on_break: <PauseCircle className="h-5 w-5 inline mr-1" />,
+    ended: <CheckCircle className="h-5 w-5 inline mr-1" />,
+  };
+
   const ActionButton = ({ onClick, children, action, variant, disabled, ...props }) => (
     <Button
       onClick={() => onActionClick(action)}
@@ -58,7 +79,6 @@ const ShiftControls = ({ shiftState, timers, handleShiftAction, shiftCount, last
         : children}
     </Button>
   );
-
 
   const renderTimer = (parts, size = '3xl', unitSize = 'sm') => (
     <div className="font-mono" style={{ fontFamily: 'monospace' }}>
@@ -83,6 +103,12 @@ const ShiftControls = ({ shiftState, timers, handleShiftAction, shiftCount, last
           <CardTitle>{t('shiftControls')}</CardTitle>
           <CardDescription>{user?.user_name}</CardDescription>
         </CardHeader>
+
+        {/* Status Indicator */}
+        <div className={`mx-4 mb-2 p-2 rounded-lg text-center font-semibold ${statusColors[shiftState.status]}`}>
+          {statusIcons[shiftState.status]} {statusLabels[shiftState.status]}
+        </div>
+
         <CardContent className="flex flex-col h-full justify-start space-y-4">
           <div className="flex justify-center items-center py-6">
             <CircularProgress percentage={shiftProgress} size={200} strokeWidth={10}>
@@ -124,11 +150,15 @@ const ShiftControls = ({ shiftState, timers, handleShiftAction, shiftCount, last
             <div className="grid grid-cols-2 gap-4 pt-4">
               <div className="p-4 bg-accent rounded-lg text-center">
                 <p className="text-sm text-muted-foreground">{t('startTime')}</p>
-                <p className="font-semibold text-lg">{shiftState.startTime ? format(new Date(shiftState.startTime), 'p') : '--:--'}</p>
+                <p className="font-semibold text-lg">
+                  {shiftState.startTime ? format(new Date(shiftState.startTime), 'p') : '--:--'}
+                </p>
               </div>
               <div className="p-4 bg-accent rounded-lg text-center">
                 <p className="text-sm text-muted-foreground">{t('endTime')}</p>
-                <p className="font-semibold text-lg">{shiftState.endTime ? format(new Date(shiftState.endTime), 'p') : '--:--'}</p>
+                <p className="font-semibold text-lg">
+                  {shiftState.endTime ? format(new Date(shiftState.endTime), 'p') : '--:--'}
+                </p>
               </div>
             </div>
 
