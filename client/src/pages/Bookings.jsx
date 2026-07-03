@@ -24,9 +24,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useParams } from 'react-router-dom';
 import EditBooking from '../components/Booking/EditBooking';
-
-
-
+import StaticticBooking from '../components/Booking/StaticticBooking';
+import { Check, X, Send } from 'lucide-react'; // إضافة Send
 
 const bookingTypeDetails = {
   Hotel: { icon: Hotel, color: 'text-blue-500', dateField: 'checkIn' },
@@ -44,30 +43,119 @@ const Bookings = () => {
 
 
   const [bookings, setBookings] = useState([]);
-  const [filters, setFilters] = useState({ type: 'All', search: '' });
   const [modal, setModal] = useState({ isOpen: false, type: null, data: null });
   const [loading, setLoading] = useState(false);
+  const today = new Date();
+  const [from, setFrom] = useState(new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10));
+  const [to, setTo] = useState(new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10));
+  const [status, setStatus] = useState("All");
+  const [customer, setCustomer] = useState("");
+  const [bookingType, setBookingType] = useState("All");
+  // const [Send, setSend] = useState(false);
+  const [filters, setFilters] = useState({
+    search: "",
+    from: new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10),
+    to: new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10),
+    type: "All",
+    status: "All",
+    customer: ""
+  });
+  const [sendingId, setSendingId] = useState(null);
+  // إضافة handleSend function
+  const handleSend = async (id) => {
+    try {
+      setSendingId(id);
+      const token = sessionStorage.getItem("token");
+      const res = await fetch(`http://travel-server.test/api/reservations/${id}/send`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-  // useEffect(() => {
-  //   const userBookings = mockBookingsData.filter(b => b.userId === user.id);
-  //   setBookings(userBookings);
-  // }, [user.id]);
+      if (!res.ok) throw new Error("Failed to send reservation");
 
-  const filteredBookings = useMemo(() => {
-    return bookings.filter(b =>
-      (filters.type === 'All' || b.reservable_type === filters.type) &&
-      ((b.customer.name || "").toLowerCase().includes(filters.search.toLowerCase()))
-    ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [bookings, filters]);
+      // تحديث الحجز في الـ state
+      setBookings(bookings.map(booking =>
+        booking.id === id
+          ? { ...booking, sent: true }
+          : booking
+      ));
 
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case 'issued': return 'bg-green-500/10 text-green-500';
-      case 'hold': return 'bg-yellow-500/10 text-yellow-500';
-      case 'cancelled': return 'bg-red-500/10 text-red-500';
-      default: return 'bg-gray-500/10 text-gray-500';
+      toast({
+        title: "Reservation Sent",
+        description: "Reservation sent to account dashboard successfully"
+      });
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Error sending reservation",
+        variant: "destructive"
+      });
+    } finally {
+      setSendingId(null);
     }
   };
+  // Function Filtration 
+  const filtered = useMemo(() => {
+    const f = new Date(filters.from);
+    const t = new Date(filters.to);
+
+    return bookings
+      .filter((r) => {
+        const d = new Date(r.created_at);
+        const inRange = d >= f && d <= t;
+        const matchType = filters.type === "All" || r.reservable_type === filters.type;
+        const matchStatus = filters.status === "All" || r.status === filters.status;
+        const matchCustomer =
+          !filters.search ||
+          (r.customer?.name || "").toLowerCase().includes(filters.search.toLowerCase());
+
+        return inRange && matchType && matchStatus && matchCustomer;
+      })
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }, [bookings, filters]);
+
+  // KPIs
+  const kpis = useMemo(() => {
+    const totalSales = filtered.reduce((sum, r) => {
+      if (r.status === "Issued" || r.status === "Hold") {
+        return sum + Number(r.sell_price || 0);
+      }
+      return sum;
+    }, 0);
+
+    const refunded = filtered.reduce((sum, r) => {
+      if (r.status === "Cancelled") {
+        return sum + Number(r.sell_price || 0);
+      }
+      return sum + Number(r.refunded || 0);
+    }, 0);
+
+    const netProfit = filtered.reduce((sum, r) => {
+      if (r.status === "Issued" || r.status === "Hold") {
+        return sum + Number(r.net_profit || 0);
+      }
+      return sum;
+    }, 0);
+
+    return { totalSales, refunded, netProfit };
+  }, [filtered]);
+
+  // Reset Filters
+  const resetFilters = () => {
+    setFilters({
+      search: "",
+      from: new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10),
+      to: new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10),
+      type: "All",
+      status: "All",
+      customer: ""
+    });
+  };
+
+
 
   const handleAction = (type, data = null) => setModal({ isOpen: true, type, data });
   const closeModal = () => setModal({ isOpen: false, type: null, data: null });
@@ -84,7 +172,7 @@ const Bookings = () => {
 
       const responseData = await res.json();
       const filteredData = responseData.filter(b => b.user_id === user.id);
-
+      console.log("Fetched Bookings:", filteredData);
       setBookings(filteredData);
     } catch (err) {
       console.error(err);
@@ -94,6 +182,7 @@ const Bookings = () => {
     }
   };
   //==============================================
+  const [errors, setErrors] = useState({});
 
   const handleSave = async (newBooking) => {
     try {
@@ -113,7 +202,17 @@ const Bookings = () => {
         body: JSON.stringify(newBooking),
       });
 
+      if (res.status === 422) {
+        const errorData = await res.json();
+        setErrors(errorData.errors);
+        return;
+      }
       if (!res.ok) throw new Error("Failed to create reservation");
+      // if (!res.ok) {
+      //   const errorData = await res.json();
+      //   console.error('Backend error:', errorData);
+      //   throw new Error(errorData.message || `HTTP error! status: ${res.status}`);
+      // }
 
       await res.json();
 
@@ -175,44 +274,15 @@ const Bookings = () => {
           <h1 className="text-3xl font-bold text-gradient flex items-center space-x-3"><Calendar className="h-8 w-8" /><span>{t('myreservations')}</span></h1>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card>
-            <CardContent className="p-4 grid grid-cols-1 md:grid-cols-3  items-center gap-4">
-              {/* Filter By Customer ==========================================================================  */}
-              <div className="relative flex-grow w-full">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder={t('searchBookings')} value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))} className="pl-10" /></div>
-              {/* Filter By bookingTypeDetails ==========================================================================  */}
-              <div>
-                <select className="w-full md:w-auto px-3 py-2 border border-input rounded-md bg-background" value={filters.type} onChange={e => setFilters(f => ({ ...f, type: e.target.value }))}>
-                  {['All', ...Object.keys(bookingTypeDetails)].map(type => <option key={type} value={type}>{t(type.toLowerCase())}</option>)}
-                </select>
-              </div>
-              {/* Button Add New Reservation =======================================================================  */}
-              <div>
-                <Button onClick={() => handleAction('add')} className="w-full md:w-auto"><Plus className="h-4 w-4 mr-2" />{t('Add New Reservation')}</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"> */}
-
-        {/* {
-        filteredBookings.map(booking => {
-          const TypeIcon = bookingTypeDetails[booking.type]?.icon || FileText;
-          const dateField = bookingTypeDetails[booking.type]?.dateField;
-          const eventDate = booking.details[dateField];
-          const isUpcoming = eventDate && differenceInDays(parseISO(eventDate), new Date()) <= (booking.reminderDays || 3) && differenceInDays(parseISO(eventDate), new Date()) >= 0; */}
-
-        {/* return ( */}
+        {/* ***************StaticticBooking************************* */}
+        <StaticticBooking bookings={bookings} bookingTypeDetails={bookingTypeDetails} filters={filters} setFilters={setFilters} kpis={kpis} resetFilters={resetFilters} handleAction={handleAction} />
 
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
           <Card>
-            <CardHeader>
+            {/* <CardHeader>
               <CardTitle>{t('Reservation')}</CardTitle>
               <CardDescription>{t('Reservation History Desc')}</CardDescription>
-            </CardHeader>
+            </CardHeader> */}
             <CardContent>
               <Table>
                 <TableHeader>
@@ -237,12 +307,22 @@ const Bookings = () => {
                   {/* </TableCell> */}
                   {/* </TableRow> */}
                   {/* // ) : */}
-                  {filteredBookings.map(booking => (
+                  {filtered.map(booking => (
                     <TableRow key={booking.id}>
                       <TableCell className="">{booking.id}</TableCell>
                       <TableCell className="capitalize">{booking.customer.name}</TableCell>
                       <TableCell>{booking.customer.phone}</TableCell>
-                      <TableCell className="">{booking.status}</TableCell>
+                      <TableCell className="">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium
+                                                         ${booking.status === 'Issued' ? 'bg-green-100 text-green-800'
+                            : booking.status === 'Cancelled'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                          {booking.status || 'Hold'}
+                        </span>
+
+                      </TableCell>
                       <TableCell>{booking.reservable_type}</TableCell>
                       <TableCell className="">{booking.sell_price}</TableCell>
                       <TableCell className="">{booking.net_profit}</TableCell>
@@ -252,6 +332,20 @@ const Bookings = () => {
                         <Edit className="w-4 h-4 text-blue-600" onClick={() => handleAction('edit', booking)} />
 
                         <Trash2 className="w-4 h-4 text-red-700" onClick={() => handleDelete(booking.id)} />
+                        {/* زرار Send - جديد */}
+                        {!booking.sent && (
+                          <Send
+                            className={`w-4 h-4 cursor-pointer ${sendingId === booking.id
+                              ? 'text-gray-400'
+                              : 'text-purple-600 hover:text-purple-700'
+                              }`}
+                            onClick={() => !sendingId && handleSend(booking.id)}
+                            title="Send to Account Dashboard"
+                          />
+                        )}
+                        {sendingId === booking.id && (
+                          <span className="text-xs text-gray-500">Sending...</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -260,22 +354,20 @@ const Bookings = () => {
             </CardContent>
           </Card>
         </motion.div>
-        {/* ); */}
-        {/* }) */}
-        {/* } */}
+
       </div>
       {/* </div> */}
 
       <AnimatePresence>
         {modal.isOpen && <BookingModal modal={modal} onClose={closeModal} onSave={handleSave} onDelete={handleDelete}  // أضف هذا السطر
-          fetchBookings={fetchBookings}  // إضافة هذا السطر
+          fetchBookings={fetchBookings} errors={errors} setErrors={setErrors}
         />}
       </AnimatePresence>
     </>
   );
 };
 
-const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إضافة هذا السطر
+const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings, errors, setErrors // إضافة هذا السطر
 }) => {
   const { t } = useLanguage();
   const [data, setData] = useState(modal.data || {
@@ -294,7 +386,15 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
     } else {
       setData(prev => ({ ...prev, [field]: value }));
     }
+    // to remove error to  again type in field
+    setErrors(prev => ({ ...prev, details: { ...prev.details, [field]: undefined } }));
+
   };
+  useEffect(() => {
+    if (modal.isOpen) {
+      setErrors({});
+    }
+  }, [modal.isOpen]);
 
   // Fetch Single Booking API
   const { id } = useParams();
@@ -368,13 +468,17 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 value={data.name || ""}
                 onChange={(e) => handleChange("name", e.target.value)}
               />
+              {errors.name && <p className="text-red-500 text-sm">{errors.name[0]}</p>}
+
             </div>
             <div>
               <Label>{t("phoneNumber")}</Label>
               <Input
                 value={data.phoneNumber || ""}
                 onChange={(e) => handleChange("phoneNumber", e.target.value)}
+
               />
+              {errors.phoneNumber && <p className="text-red-500 text-sm">{errors.phoneNumber[0]}</p>}
             </div>
           </div>
 
@@ -383,7 +487,7 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
             <Label>{t("Booking Types")}</Label>
             <div className="flex md:flex-wrap flex-nowrap gap-2 mt-2 overflow-x-auto md:overflow-x-visible whitespace-nowrap no-scrollbar">
               {bookingTypes.map((type) => (
-                <button
+                <Button
                   key={type}
                   type="button"
                   onClick={() => handleChange("bookingType", type)}
@@ -393,8 +497,10 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                     }`}
                 >
                   {type}
-                </button>
+                </Button>
+
               ))}
+              {errors.type && <p className="text-red-500 text-sm">{errors.type[0]}</p>}
             </div>
           </div>
           {/* Switch Cases To Forms Type Booking  */}
@@ -412,6 +518,9 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 value={data.sell_price}
                 onChange={(e) => handleChange("sell_price", e.target.value)}
               />
+              {errors["details.sell_price"] && <p className="text-red-500 text-sm">{errors["details.sell_price"][0]}</p>}
+
+
             </div>
 
             {/* Payment Fees */}
@@ -422,6 +531,7 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 value={data.fees}
                 onChange={(e) => handleChange("fees", e.target.value)}
               />
+              {errors["details.fees"] && <p className="text-red-500 text-sm">{errors["details.fees"][0]}</p>}
             </div>
 
             {/* Cost */}
@@ -432,12 +542,16 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 value={data.cost}
                 onChange={(e) => handleChange("cost", e.target.value)}
               />
+              {errors["details.cost"] && <p className="text-red-500 text-sm">{errors["details.cost"][0]}</p>}
             </div>
 
             {/* Net Profit */}
             <div>
               <Label>Net Profit</Label>
-              <Input type="number" value={data.net_profit} readOnly />
+              <Input type="number" value={data.net_profit} readOnly
+
+              />
+              {errors["details.net_profit"] && <p className="text-red-500 text-sm">{errors["details.net_profit"][0]}</p>}
             </div>
           </div>
 
@@ -448,11 +562,13 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
               className="w-full px-3 py-2 border border-input rounded-md bg-background"
               value={data.status || "hold"}
               onChange={(e) => handleChange("status", e.target.value)}
+
             >
               <option value="issued">issued</option>
               <option value="hold">hold</option>
               <option value="cancelled">cancelled</option>
             </select>
+            {errors["details.status"] && <p className="text-red-500 text-sm">{errors["details.status"][0]}</p>}
           </div>
 
           {/* Notes */}
@@ -533,9 +649,7 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
             </div>
             {/* RoomType && Gusts  */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-
               <div>
-
                 <Label>{t("Room Type")}</Label>
                 <Input
                   type="text"
@@ -544,26 +658,19 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 />
               </div>
               <div>
-                {/* <Label>{t("Guests")}</Label>
-                <Input
-                  type="number"
-                  value={data.guest || ""}
-                  onChange={(e) => handleChange("guest", e.target.value)}
-                /> */}
-
+                {/* BookingNumber  */}
+                <div>
+                  <Label>{t("Booking Number")}</Label>
+                  <Input
+                    type="number"
+                    value={data.booking_number}
+                    onChange={(e) => handleChange("BookingNumber", e.target.value)}
+                  />
+                </div>
               </div>
 
             </div>
-            {/* BookingNumber  */}
-            <div>
 
-              <Label>{t("Booking Number")}</Label>
-              <Input
-                type="number"
-                value={data.booking_number}
-                onChange={(e) => handleChange("BookingNumber", e.target.value)}
-              />
-            </div>
             {/* Supplier Name */}
             <div>
 
@@ -573,13 +680,17 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 value={data.supplier_name}
                 onChange={(e) => handleChange("supplierName", e.target.value)}
               />
+              {errors.supplierName && <p className="text-red-500 text-sm">{errors.supplierName[0]}</p>}
+
             </div>
             {/* Supplier Status && Supplier Payment Due Date   */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-
                 <Label>{t("Supplier Status")}</Label>
-                <Select >
+                <Select
+                  value={data.payment_status || ""}
+                  onValueChange={value => handleChange("payment_status", value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a Status" />
                   </SelectTrigger>
@@ -649,9 +760,7 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
 
             {/* Departure Date && Arrival Date  */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-
               <div>
-
                 <Label>{t("Departure Date")}</Label>
                 <Input
                   type="date"
@@ -670,9 +779,9 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
               </div>
 
             </div>
+
             {/* NumberofGeust && NumberOfRoom */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-
               <div>
 
                 <Label>{t("From")}</Label>
@@ -692,43 +801,47 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 />
               </div>
             </div>
-            <div>
 
+            {/* Passenger Information */}
+            <div>
               <Label>{t("Passenger Information")}</Label>
               <Input
-                value={data.passengerInfo || ""}
+                value={data.passangerInfo || ""}
                 type="text"
-                onChange={(e) => handleChange("passengerInfo", e.target.value)}
+                onChange={(e) => handleChange("passangerInfo", e.target.value)}
               />
             </div>
 
-            {/* Supplier Name */}
-            <div>
-
-              <Label>{t("Supplier Name")}</Label>
-              <Input
-                type="text"
-                value={data.supplierName || ""}
-                onChange={(e) => handleChange("supplierName", e.target.value)}
-              />
-            </div>
-            {/* Supplier Status */}
-            <div>
-
-              <Label>{t("Supplier Status")}</Label>
-              <Select >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Paid" className="capitalize">
-                    Paid
-                  </SelectItem>
-                  <SelectItem value="Not Paid" className="capitalize">
-                    Not Paid
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Supplier Name && Supplier Status  */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label>{t("Supplier Name")}</Label>
+                <Input
+                  type="text"
+                  value={data.supplierName || ""}
+                  onChange={(e) => handleChange("supplierName", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>{t("Supplier Status")}</Label>
+                <Select value={data.payment_status || ""}
+                  onValueChange={value => handleChange("payment_status", value)} >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Confimed" className="capitalize">
+                      Confimed
+                    </SelectItem>
+                    <SelectItem value="Pending" className="capitalize">
+                      Pending
+                    </SelectItem>
+                    <SelectItem value="Cancelled" className="capitalize">
+                      Cancelled
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Notes */}
@@ -742,7 +855,6 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 placeholder={t("addNotes")}
               />
             </div>
-
 
           </div>
         );
@@ -795,9 +907,7 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
 
             {/* Departure Date && Rutern Date  */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-
               <div>
-
                 <Label>{t("Departure Date")}</Label>
                 <Input
                   type="date"
@@ -806,7 +916,7 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 />
               </div>
               <div>
-                <Label>{t("Rutern Date")}</Label>
+                <Label>{t("Arrival Date")}</Label>
                 <Input
                   type="date"
                   value={data.returnDate || ""}
@@ -828,7 +938,7 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
               </div>
               <div>
 
-                <Label>{t("Return Port")}</Label>
+                <Label>{t("Arrival Port")}</Label>
                 <Input
                   type="text"
                   value={data.returnPort || ""}
@@ -837,33 +947,36 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
               </div>
             </div>
 
-            {/* Supplier Name */}
-            <div>
-
-              <Label>{t("Supplier Name")}</Label>
-              <Input
-                type="text"
-                value={data.supplierName || ""}
-                onChange={(e) => handleChange("supplierName", e.target.value)}
-              />
-            </div>
-            {/* Supplier Status */}
-            <div>
-
-              <Label>{t("Supplier Status")}</Label>
-              <Select >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Paid" className="capitalize">
-                    Paid
-                  </SelectItem>
-                  <SelectItem value="Not Paid" className="capitalize">
-                    Not Paid
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Supplier Name Supplier Status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label>{t("Supplier Name")}</Label>
+                <Input
+                  type="text"
+                  value={data.supplierName || ""}
+                  onChange={(e) => handleChange("supplierName", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>{t("Supplier Status")}</Label>
+                <Select value={data.payment_status || ""}
+                  onValueChange={value => handleChange("payment_status", value)} >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Confimed" className="capitalize">
+                      Confimed
+                    </SelectItem>
+                    <SelectItem value="Pending" className="capitalize">
+                      Pending
+                    </SelectItem>
+                    <SelectItem value="Cancelled" className="capitalize">
+                      Cancelled
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Notes */}
@@ -935,31 +1048,41 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
               <Textarea
 
                 type="text"
-                value={data.applicationDetails || ""}
-                onChange={(e) => handleChange("applicationDetails", e.target.value)}
+                value={data.applicationDetials || ""}
+                onChange={(e) => handleChange("applicationDetials", e.target.value)}
               />
             </div>
 
-            {/* Supplier Status */}
-            <div>
-
-              <Label>{t("Supplier Status")}</Label>
-              <Select >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Paid" className="capitalize">
-                    Pending
-                  </SelectItem>
-                  <SelectItem value="Not Paid" className="capitalize">
-                    Approved
-                  </SelectItem>
-                  <SelectItem value="Not Paid" className="capitalize">
-                    Rejected
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Supplier Name Supplier Status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label>{t("Supplier Name")}</Label>
+                <Input
+                  type="text"
+                  value={data.supplierName || ""}
+                  onChange={(e) => handleChange("supplierName", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>{t("Supplier Status")}</Label>
+                <Select value={data.payment_status || ""}
+                  onValueChange={value => handleChange("payment_status", value)} >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pending" className="capitalize">
+                      Pending
+                    </SelectItem>
+                    <SelectItem value="Approved" className="capitalize">
+                      Approved
+                    </SelectItem>
+                    <SelectItem value="Rejected" className="capitalize">
+                      Rejected
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Notes */}
@@ -997,9 +1120,7 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
 
             {/* applicationDate */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
               <div>
-
                 <Label>{t("Application Date")}</Label>
                 <Input
                   type="datetime-local"
@@ -1018,26 +1139,36 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
               </div>
             </div>
 
-            {/* Supplier Status */}
-            <div>
-
-              <Label>{t("Supplier Status")}</Label>
-              <Select >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Paid" className="capitalize">
-                    Pending
-                  </SelectItem>
-                  <SelectItem value="Not Paid" className="capitalize">
-                    Approved
-                  </SelectItem>
-                  <SelectItem value="Not Paid" className="capitalize">
-                    Rejected
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Supplier Status && Supplier Status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label>{t("Supplier Name")}</Label>
+                <Input
+                  type="text"
+                  value={data.supplierName || ""}
+                  onChange={(e) => handleChange("supplierName", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>{t("Supplier Status")}</Label>
+                <Select value={data.payment_status || ""}
+                  onValueChange={value => handleChange("payment_status", value)} >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Scheduled" className="capitalize">
+                      Scheduled
+                    </SelectItem>
+                    <SelectItem value="Completed" className="capitalize">
+                      Completed
+                    </SelectItem>
+                    <SelectItem value="Cancelled" className="capitalize">
+                      Cancelled
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Notes */}
@@ -1061,9 +1192,9 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
           <div className="space-y-2 border rounded-md shadow-md p-3">
             {/* Insurance Name */}
             <h2>{t("Insurance Information")}</h2>
-            <div>
 
-              <Label>{t("Insurance Name")}</Label>
+            <div>
+              <Label>{t("Insurance Type")}</Label>
               <Input
                 value={data.insurance || ""}
                 type="text"
@@ -1072,7 +1203,6 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
             </div>
 
             <div>
-
               <Label>{t("Provider")}</Label>
               <Input
                 type="text"
@@ -1112,27 +1242,39 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
               />
             </div>
 
-            {/* Supplier Status */}
-            <div>
 
-              <Label>{t("Status")}</Label>
-              <Select >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Paid" className="capitalize">
-                    Active
-                  </SelectItem>
-                  <SelectItem value="Not Paid" className="capitalize">
-                    Expired
-                  </SelectItem>
-                  <SelectItem value="Not Paid" className="capitalize">
-                    Cancelled
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Supplier Status && Supplier Status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label>{t("Supplier Name")}</Label>
+                <Input
+                  type="text"
+                  value={data.supplierName || ""}
+                  onChange={(e) => handleChange("supplierName", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>{t("Status")}</Label>
+                <Select value={data.payment_status || ""}
+                  onValueChange={value => handleChange("payment_status", value)} >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active" className="capitalize">
+                      Active
+                    </SelectItem>
+                    <SelectItem value="Expired" className="capitalize">
+                      Expired
+                    </SelectItem>
+                    <SelectItem value="Cancelled" className="capitalize">
+                      Cancelled
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
 
             {/* Notes */}
             <div>
@@ -1147,11 +1289,11 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
             </div>
 
 
-          </div>
+          </div >
 
         );
       // Tickets======================================================================
-      case "Tickets":
+      case "Ticket":
         return (
           <div className="space-y-2 border rounded-md shadow-md p-3">
             {/* Tickets Name */}
@@ -1195,7 +1337,7 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
 
                 <Label>{t("Quantity")}</Label>
                 <Input
-                  type="text"
+                  type="number"
                   value={data.quantity || ""}
                   onChange={(e) => handleChange("quantity", e.target.value)}
                 />
@@ -1212,37 +1354,37 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 onChange={(e) => handleChange("ticketCount", e.target.value)}
               />
             </div>
-            {/* Supplier Name  */}
-            <div>
 
-              <Label>{t("Supplier Name")}</Label>
-              <Input
-                type="text"
-                value={data.supplierName || ""}
-                onChange={(e) => handleChange("supplierName", e.target.value)}
-              />
-            </div>
-
-            {/* Supplier Status */}
-            <div>
-
-              <Label>{t("Status")}</Label>
-              <Select >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Paid" className="capitalize">
-                    Confirmed
-                  </SelectItem>
-                  <SelectItem value="Not Paid" className="capitalize">
-                    Pending
-                  </SelectItem>
-                  <SelectItem value="Not Paid" className="capitalize">
-                    Cancelled
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Supplier Status && Supplier Status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label>{t("Supplier Name")}</Label>
+                <Input
+                  type="text"
+                  value={data.supplierName || ""}
+                  onChange={(e) => handleChange("supplierName", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>{t("Status")}</Label>
+                <Select value={data.payment_status || ""}
+                  onValueChange={value => handleChange("payment_status", value)} >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Confirmed" className="capitalize">
+                      Confirmed
+                    </SelectItem>
+                    <SelectItem value="Pending" className="capitalize">
+                      Pending
+                    </SelectItem>
+                    <SelectItem value="Cancelled" className="capitalize">
+                      Cancelled
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Notes */}
@@ -1269,17 +1411,16 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
             {/* Transportation Type */}
             <div>
               <Label>{t("Transportation Type")}</Label>
-              <Select >
+              <Select value={data.transport_type || ""}
+                onValueChange={value => handleChange("transport_type", value)} >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Car" className="capitalize">
-                    Car
-                  </SelectItem>
-                  <SelectItem value="Bus" className="capitalize">
-                    Bus
-                  </SelectItem>
+                  <SelectItem value="Car">Car</SelectItem>
+                  <SelectItem value="Bus">Bus</SelectItem>
+                  <SelectItem value="Train">Train</SelectItem>
+                  <SelectItem value="Taxi">Taxi</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1292,9 +1433,7 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                   onChange={(e) => handleChange("pickupLocation", e.target.value)}
                 />
               </div>
-
               <div>
-
                 <Label>{t("Dropoff Location")}</Label>
                 <Input
                   type="text"
@@ -1303,10 +1442,8 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 />
               </div>
             </div>
-
-            {/* Transportation Date   */}
+            {/* Route From && to   */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
               <div>
                 <Label>{t("Route From")}</Label>
                 <Input
@@ -1324,56 +1461,56 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-              <div>
-                <Label>{t("Transportation Date")}</Label>
-                <Input
-                  type="datetime-local"
-                  value={data.transportationDate || ""}
-                  onChange={(e) => handleChange("transportationDate", e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>{t("Passenger Count")}</Label>
-                <Input
-                  type="number"
-                  value={data.passengerCount || ""}
-                  onChange={(e) => handleChange("passengerCount", e.target.value)}
-                />
-              </div>
-            </div>
-            {/* Supplier Name  */}
             <div>
-
-              <Label>{t("Supplier Name")}</Label>
+              <Label>{t("Transportation Date")}</Label>
               <Input
-                type="text"
-                value={data.supplierName || ""}
-                onChange={(e) => handleChange("supplierName", e.target.value)}
+                type="datetime-local"
+                value={data.transportationDate || ""}
+                onChange={(e) => handleChange("transportationDate", e.target.value)}
               />
             </div>
 
-            {/*  Status */}
             <div>
+              <Label>{t("Passenger Count")}</Label>
+              <Input
+                type="number"
+                value={data.passengerCount || ""}
+                onChange={(e) => handleChange("passengerCount", e.target.value)}
+              />
+            </div>
 
-              <Label>{t("Status")}</Label>
-              <Select >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Paid" className="capitalize">
-                    Confirmed
-                  </SelectItem>
-                  <SelectItem value="Not Paid" className="capitalize">
-                    Pending
-                  </SelectItem>
-                  <SelectItem value="Not Paid" className="capitalize">
-                    Cancelled
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+
+            {/* Supplier Status && Supplier Status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label>{t("Supplier Name")}</Label>
+                <Input
+                  type="text"
+                  value={data.supplierName || ""}
+                  onChange={(e) => handleChange("supplierName", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>{t("Status")}</Label>
+                <Select value={data.payment_status || ""}
+                  onValueChange={value => handleChange("payment_status", value)} >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Confirmed" className="capitalize">
+                      Confirmed
+                    </SelectItem>
+                    <SelectItem value="Pending" className="capitalize">
+                      Pending
+                    </SelectItem>
+                    <SelectItem value="Cancelled" className="capitalize">
+                      Cancelled
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Notes */}
@@ -1399,9 +1536,6 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
         );
     }
   };
-  //----------------------------------------------------------------------------------------------------------------------
-
-
 
   //----------------------------------------------------------------------------------------------------------------------
   // View Render the booking details based on the selected booking type=============================================
@@ -1418,7 +1552,7 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
       case "Hotel":
         return (
           <div className="space-y-2 border rounded-md shadow-md p-3">
-            <h2 className="text-xl font-semibold">{t("Hotel Information")}</h2>
+            <h2 className="text-2xl text-center font-bold text-gradient">{t("Hotel Information")}</h2>
 
             {/* Hotel Name */}
             <div>
@@ -1436,8 +1570,14 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
             </div>
 
             {/* Room Type */}
-            <div>
-              <Label className="font-medium">{t("Room Type")}: {singleBooking.reservable?.room_type || 'N/A'}</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label className="font-medium">{t("Room Type")}: {singleBooking.reservable?.room_type || 'N/A'}</Label>
+              </div>
+              {/* Booking Number */}
+              <div>
+                <Label className="font-medium">{t("Booking Number")}: {singleBooking.reservable?.booking_number || 'N/A'}</Label>
+              </div>
             </div>
 
             {/* Check In && Check Out */}
@@ -1449,44 +1589,33 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 <Label className="font-medium">{t("Check Out")}: {singleBooking.reservable?.check_out_date || 'N/A'}</Label>
               </div>
             </div>
-
-            {/* Booking Number */}
-            <div>
-              <Label className="font-medium">{t("Booking Number")}: {singleBooking.reservable?.booking_number || 'N/A'}</Label>
-            </div>
-
-            {/* Status */}
-            <div>
-              <Label className="font-medium">{t("Status")}: {singleBooking.status || 'N/A'}</Label>
-            </div>
-
-            {/* Cost && Sell Price */}
+            {/*Supplier name && payment_status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-                <Label className="font-medium">{t("Cost")}: {singleBooking.cost || 'N/A'}</Label>
+                <Label className="font-medium">{t("Supplier Name")}: {singleBooking.supplier?.name || 'N/A'}</Label>
               </div>
               <div>
-                <Label className="font-medium">{t("Sell Price")}: {singleBooking.sell_price || 'N/A'}</Label>
+                <Label className="font-medium">{t("Status")}: {singleBooking.supplier?.payment_status || 'N/A'}</Label>
               </div>
             </div>
 
-            {/* Notes */}
-            <div>
-              <Label className="font-medium">{t("Notes")}: {singleBooking.notes || singleBooking.reservable?.notes || 'N/A'}</Label>
-            </div>
           </div>
         );
 
       case "Flight":
         return (
           <div className="space-y-2 border rounded-md shadow-md p-3">
-            <h2 className="text-xl font-semibold">{t("Flight Information")}</h2>
+            <h2 className="text-2xl text-center font-bold text-gradient">{t("Flight Information")}</h2>
 
             {/* Flight Number */}
-            <div>
-              <Label className="font-medium">{t("Flight Number")}: {singleBooking.reservable?.flight_number || 'N/A'}</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label className="font-medium">{t("Flight Number")}: {singleBooking.reservable?.flight_number || 'N/A'}</Label>
+              </div>
+              <div>
+                <Label className="font-medium">{t("Airline")}: {singleBooking.reservable?.airline || 'N/A'}</Label>
+              </div>
             </div>
-
             {/* Departure Date && Arrival Date */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
@@ -1500,31 +1629,24 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
             {/* From && To */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-                <Label className="font-medium">{t("From")}: {singleBooking.reservable?.from || 'N/A'}</Label>
+                <Label className="font-medium">{t("From")}: {singleBooking.reservable?.from_airport || 'N/A'}</Label>
               </div>
               <div>
-                <Label className="font-medium">{t("To")}: {singleBooking.reservable?.to || 'N/A'}</Label>
+                <Label className="font-medium">{t("To")}: {singleBooking.reservable?.to_airport || 'N/A'}</Label>
               </div>
             </div>
-
-            {/* Status */}
+            {/* passangerInfo */}
             <div>
-              <Label className="font-medium">{t("Status")}: {singleBooking.status || 'N/A'}</Label>
+              <Label className="font-medium">{t("Passanger Info")}: {singleBooking.reservable?.passangerInfo || 'N/A'}</Label>
             </div>
-
-            {/* Cost && Sell Price */}
+            {/*Supplier name && Payment Status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-                <Label className="font-medium">{t("Cost")}: {singleBooking.cost || 'N/A'}</Label>
+                <Label className="font-medium">{t("Supplier Name")}: {singleBooking.supplier?.name || 'N/A'}</Label>
               </div>
               <div>
-                <Label className="font-medium">{t("Sell Price")}: {singleBooking.sell_price || 'N/A'}</Label>
+                <Label className="font-medium">{t("Status")}: {singleBooking.supplier?.payment_status || 'N/A'}</Label>
               </div>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <Label className="font-medium">{t("Notes")}: {singleBooking.notes || 'N/A'}</Label>
             </div>
           </div>
         );
@@ -1532,11 +1654,25 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
       case "Cruise":
         return (
           <div className="space-y-2 border rounded-md shadow-md p-3">
-            <h2 className="text-xl font-semibold">{t("Cruise Information")}</h2>
+            <h2 className="text-2xl text-center font-bold text-gradient">{t("Cruise Information")}</h2>
 
             {/* Cruise Name */}
-            <div>
-              <Label className="font-medium">{t("Cruise Name")}: {singleBooking.reservable?.name || 'N/A'}</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label className="font-medium">{t("Cruise Name")}: {singleBooking.reservable?.cruise_name || 'N/A'}</Label>
+              </div>
+              <div>
+                <Label className="font-medium">{t("Cruise Line")}: {singleBooking.reservable?.cruise_line || 'N/A'}</Label>
+              </div>
+            </div>
+            {/* Cruise Name */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label className="font-medium">{t("Ship Name")}: {singleBooking.reservable?.ship_name || 'N/A'}</Label>
+              </div>
+              <div>
+                <Label className="font-medium">{t("Cabin Type")}: {singleBooking.reservable?.cabin_type || 'N/A'}</Label>
+              </div>
             </div>
 
             {/* Departure Date && Return Date */}
@@ -1545,7 +1681,7 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 <Label className="font-medium">{t("Departure Date")}: {singleBooking.reservable?.departure_date || 'N/A'}</Label>
               </div>
               <div>
-                <Label className="font-medium">{t("Return Date")}: {singleBooking.reservable?.return_date || 'N/A'}</Label>
+                <Label className="font-medium">{t("Arrival Date")}: {singleBooking.reservable?.arrival_date || 'N/A'}</Label>
               </div>
             </div>
 
@@ -1555,28 +1691,18 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 <Label className="font-medium">{t("Departure Port")}: {singleBooking.reservable?.departure_port || 'N/A'}</Label>
               </div>
               <div>
-                <Label className="font-medium">{t("Return Port")}: {singleBooking.reservable?.return_port || 'N/A'}</Label>
+                <Label className="font-medium">{t("Arrival Port")}: {singleBooking.reservable?.arrival_port || 'N/A'}</Label>
               </div>
             </div>
 
-            {/* Status */}
-            <div>
-              <Label className="font-medium">{t("Status")}: {singleBooking.status || 'N/A'}</Label>
-            </div>
-
-            {/* Cost && Sell Price */}
+            {/*Supplier name && payment_status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-                <Label className="font-medium">{t("Cost")}: {singleBooking.cost || 'N/A'}</Label>
+                <Label className="font-medium">{t("Supplier Name")}: {singleBooking.supplier?.name || 'N/A'}</Label>
               </div>
               <div>
-                <Label className="font-medium">{t("Sell Price")}: {singleBooking.sell_price || 'N/A'}</Label>
+                <Label className="font-medium">{t("Status")}: {singleBooking.supplier?.payment_status || 'N/A'}</Label>
               </div>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <Label className="font-medium">{t("Notes")}: {singleBooking.notes || 'N/A'}</Label>
             </div>
           </div>
         );
@@ -1584,36 +1710,40 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
       case "Visa":
         return (
           <div className="space-y-2 border rounded-md shadow-md p-3">
-            <h2 className="text-xl font-semibold">{t("Visa Information")}</h2>
+            <h2 className="text-2xl text-center font-bold text-gradient">{t("Visa Information")}</h2>
 
             {/* Visa Type/Name */}
-            <div>
-              <Label className="font-medium">{t("Visa Type")}: {singleBooking.reservable?.visa_type || singleBooking.reservable?.name || 'N/A'}</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label className="font-medium">{t("Visa Type")}: {singleBooking.reservable?.visa_type || singleBooking.reservable?.name || 'N/A'}</Label>
+              </div>
+              <div>
+                <Label className="font-medium">{t("Country")}: {singleBooking.reservable?.country || singleBooking.reservable?.country || 'N/A'}</Label>
+              </div>
             </div>
 
             {/* Application Date */}
-            <div>
-              <Label className="font-medium">{t("Application Date")}: {singleBooking.reservable?.application_date || 'N/A'}</Label>
-            </div>
-
-            {/* Status */}
-            <div>
-              <Label className="font-medium">{t("Status")}: {singleBooking.status || 'N/A'}</Label>
-            </div>
-
-            {/* Cost && Sell Price */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-                <Label className="font-medium">{t("Cost")}: {singleBooking.cost || 'N/A'}</Label>
+                <Label className="font-medium">{t("Application Date")}: {singleBooking.reservable?.application_date || 'N/A'}</Label>
               </div>
               <div>
-                <Label className="font-medium">{t("Sell Price")}: {singleBooking.sell_price || 'N/A'}</Label>
+                <Label className="font-medium">{t("Duration")}: {singleBooking.reservable?.duration || 'N/A'}</Label>
               </div>
             </div>
-
-            {/* Notes */}
+            {/* applicationDetials */}
             <div>
-              <Label className="font-medium">{t("Notes")}: {singleBooking.notes || 'N/A'}</Label>
+              <Label className="font-medium">{t("Application Detials")}: {singleBooking.reservable?.applicationDetials || 'N/A'}</Label>
+            </div>
+
+            {/*Supplier name && payment_status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label className="font-medium">{t("Supplier Name")}: {singleBooking.supplier?.name || 'N/A'}</Label>
+              </div>
+              <div>
+                <Label className="font-medium">{t("Status")}: {singleBooking.supplier?.payment_status || 'N/A'}</Label>
+              </div>
             </div>
           </div>
         );
@@ -1621,41 +1751,31 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
       case "Appointment":
         return (
           <div className="space-y-2 border rounded-md shadow-md p-3">
-            <h2 className="text-xl font-semibold">{t("Appointment Information")}</h2>
+            <h2 className="text-2xl text-center font-bold text-gradient">{t("Appointment Information")}</h2>
 
             {/* Appointment Name */}
             <div>
-              <Label className="font-medium">{t("Appointment Name")}: {singleBooking.reservable?.name || 'N/A'}</Label>
+              <Label className="font-medium">{t("Appointment Type")}: {singleBooking.reservable?.appointment_type || 'N/A'}</Label>
             </div>
 
             {/* Application Date && Location */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label className="font-medium">{t("Application Date")}: {singleBooking.reservable?.application_date || 'N/A'}</Label>
+                <Label className="font-medium">{t("Appointment Date")}: {singleBooking.reservable?.appointment_date || 'N/A'}</Label>
               </div>
               <div>
                 <Label className="font-medium">{t("Location")}: {singleBooking.reservable?.location || 'N/A'}</Label>
               </div>
             </div>
 
-            {/* Status */}
-            <div>
-              <Label className="font-medium">{t("Status")}: {singleBooking.status || 'N/A'}</Label>
-            </div>
-
-            {/* Cost && Sell Price */}
+            {/*Supplier name && payment_status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-                <Label className="font-medium">{t("Cost")}: {singleBooking.cost || 'N/A'}</Label>
+                <Label className="font-medium">{t("Supplier Name")}: {singleBooking.supplier?.name || 'N/A'}</Label>
               </div>
               <div>
-                <Label className="font-medium">{t("Sell Price")}: {singleBooking.sell_price || 'N/A'}</Label>
+                <Label className="font-medium">{t("Status")}: {singleBooking.supplier?.payment_status || 'N/A'}</Label>
               </div>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <Label className="font-medium">{t("Notes")}: {singleBooking.notes || 'N/A'}</Label>
             </div>
           </div>
         );
@@ -1663,16 +1783,20 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
       case "Insurance":
         return (
           <div className="space-y-2 border rounded-md shadow-md p-3">
-            <h2 className="text-xl font-semibold">{t("Insurance Information")}</h2>
+            <h2 className="text-2xl text-center font-bold text-gradient">{t("Insurance Information")}</h2>
 
             {/* Insurance Name */}
             <div>
-              <Label className="font-medium">{t("Insurance Name")}: {singleBooking.reservable?.name || 'N/A'}</Label>
+              <Label className="font-medium">{t("Insurance Type")}: {singleBooking.reservable?.insurance_type || 'N/A'}</Label>
             </div>
 
             {/* Provider */}
             <div>
               <Label className="font-medium">{t("Provider")}: {singleBooking.reservable?.provider || 'N/A'}</Label>
+            </div>
+            {/* Provider */}
+            <div>
+              <Label className="font-medium">{t("Insured Persons")}: {singleBooking.reservable?.insured_persons || 'N/A'}</Label>
             </div>
 
             {/* Start Date && End Date */}
@@ -1685,66 +1809,57 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
               </div>
             </div>
 
-            {/* Status */}
-            <div>
-              <Label className="font-medium">{t("Status")}: {singleBooking.status || 'N/A'}</Label>
-            </div>
-
-            {/* Cost && Sell Price */}
+            {/*Supplier name && payment_status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-                <Label className="font-medium">{t("Cost")}: {singleBooking.cost || 'N/A'}</Label>
+                <Label className="font-medium">{t("Supplier Name")}: {singleBooking.supplier?.name || 'N/A'}</Label>
               </div>
               <div>
-                <Label className="font-medium">{t("Sell Price")}: {singleBooking.sell_price || 'N/A'}</Label>
+                <Label className="font-medium">{t("Status")}: {singleBooking.supplier?.payment_status || 'N/A'}</Label>
               </div>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <Label className="font-medium">{t("Notes")}: {singleBooking.notes || 'N/A'}</Label>
             </div>
           </div>
         );
 
-      case "Tickets":
+      case "Ticket":
         return (
           <div className="space-y-2 border rounded-md shadow-md p-3">
-            <h2 className="text-xl font-semibold">{t("Entertainment Tickets Information")}</h2>
+            <h2 className="text-2xl text-center font-bold text-gradient">{t("Entertainment Tickets Information")}</h2>
 
             {/* Event Name */}
-            <div>
-              <Label className="font-medium">{t("Event Name")}: {singleBooking.reservable?.event_name || singleBooking.reservable?.name || 'N/A'}</Label>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="font-medium">{t("Event Name")}: {singleBooking.reservable?.event_name || singleBooking.reservable?.name || 'N/A'}</Label>
+              </div>
 
-            {/* Event Date */}
-            <div>
-              <Label className="font-medium">{t("Event Date")}: {singleBooking.reservable?.event_date || 'N/A'}</Label>
+              {/* Event Date */}
+              <div>
+                <Label className="font-medium">{t("Event Date")}: {singleBooking.reservable?.event_date || 'N/A'}</Label>
+              </div>
             </div>
 
             {/* Ticket Count */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="font-medium">{t("Ticket Count")}: {singleBooking.reservable?.tickets_count || 'N/A'}</Label>
+              </div>
+              <div>
+                <Label className="font-medium">{t("Seat Category")}: {singleBooking.reservable?.seat_category || 'N/A'}</Label>
+              </div>
+            </div>
+            {/* Quantity */}
             <div>
-              <Label className="font-medium">{t("Ticket Count")}: {singleBooking.reservable?.ticket_count || 'N/A'}</Label>
+              <Label className="font-medium">{t("Quantity")}: {singleBooking.reservable?.quantity || 'N/A'}</Label>
             </div>
 
-            {/* Status */}
-            <div>
-              <Label className="font-medium">{t("Status")}: {singleBooking.status || 'N/A'}</Label>
-            </div>
-
-            {/* Cost && Sell Price */}
+            {/*Supplier name && payment_status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-                <Label className="font-medium">{t("Cost")}: {singleBooking.cost || 'N/A'}</Label>
+                <Label className="font-medium">{t("Supplier Name")}: {singleBooking.supplier?.name || 'N/A'}</Label>
               </div>
               <div>
-                <Label className="font-medium">{t("Sell Price")}: {singleBooking.sell_price || 'N/A'}</Label>
+                <Label className="font-medium">{t("Status")}: {singleBooking.supplier?.payment_status || 'N/A'}</Label>
               </div>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <Label className="font-medium">{t("Notes")}: {singleBooking.notes || 'N/A'}</Label>
             </div>
           </div>
         );
@@ -1752,11 +1867,11 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
       case "Transportation":
         return (
           <div className="space-y-2 border rounded-md shadow-md p-3">
-            <h2 className="text-xl font-semibold">{t("Transportation Information")}</h2>
+            <h2 className="text-2xl text-center font-bold text-gradient">{t("Transportation Information")}</h2>
 
             {/* Transportation Type */}
             <div>
-              <Label className="font-medium">{t("Transportation Type")}: {singleBooking.reservable?.transportation_type || 'N/A'}</Label>
+              <Label className="font-medium">{t("Transportation Type")}: {singleBooking.reservable?.transport_type || 'N/A'}</Label>
             </div>
 
             {/* Pickup Location && Dropoff Location */}
@@ -1768,35 +1883,34 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
                 <Label className="font-medium">{t("Dropoff Location")}: {singleBooking.reservable?.dropoff_location || 'N/A'}</Label>
               </div>
             </div>
+            {/* Pickup Location && Dropoff Location */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="font-medium">{t("Route From")}: {singleBooking.reservable?.routeFrom || 'N/A'}</Label>
+              </div>
+              <div>
+                <Label className="font-medium">{t("Route To")}: {singleBooking.reservable?.routeTo || 'N/A'}</Label>
+              </div>
+            </div>
 
             {/* Transportation Date && Passenger Count */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label className="font-medium">{t("Transportation Date")}: {singleBooking.reservable?.transportation_date || 'N/A'}</Label>
+                <Label className="font-medium">{t("Transportation Date")}: {singleBooking.reservable?.transportationDate || 'N/A'}</Label>
               </div>
               <div>
                 <Label className="font-medium">{t("Passenger Count")}: {singleBooking.reservable?.passenger_count || 'N/A'}</Label>
               </div>
             </div>
 
-            {/* Status */}
-            <div>
-              <Label className="font-medium">{t("Status")}: {singleBooking.status || 'N/A'}</Label>
-            </div>
-
-            {/* Cost && Sell Price */}
+            {/*Supplier name && payment_status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-                <Label className="font-medium">{t("Cost")}: {singleBooking.cost || 'N/A'}</Label>
+                <Label className="font-medium">{t("Supplier Name")}: {singleBooking.supplier?.name || 'N/A'}</Label>
               </div>
               <div>
-                <Label className="font-medium">{t("Sell Price")}: {singleBooking.sell_price || 'N/A'}</Label>
+                <Label className="font-medium">{t("Status")}: {singleBooking.supplier?.payment_status || 'N/A'}</Label>
               </div>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <Label className="font-medium">{t("Notes")}: {singleBooking.notes || 'N/A'}</Label>
             </div>
           </div>
         );
@@ -1818,33 +1932,54 @@ const BookingModal = ({ modal, onClose, onSave, onDelete, fetchBookings  // إض
         <Dialog open={modal.isOpen} onOpenChange={onClose}>
           <DialogContent className="w-[800px] max-w-[90%] sm:max-w-[600px] md:max-w-[700px] lg:max-w-[800px]">
             <DialogHeader>
-              <DialogTitle>{t("View Reservation Details")}</DialogTitle>
+              {/* Details Main Reservation */}
+              <div className='text-center text-3xl font-bold text-gradient'>
+                {t("Details Reservation")}
+              </div>
+              {/* <DialogTitle>{t("View Reservation Details")}</DialogTitle> */}
             </DialogHeader>
 
-            {/* Details Main Reservation */}
-            <div className='text-center text-3xl font-bold text-gradient'>
-              {t("Details Reservation")}
-            </div>
-
             {loading ? (
-              <div className="flex justify-center items-center py-8">
+              <div className="flex justify-center items-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
               </div>
             ) : singleBooking ? (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>{t("Customer Name")}: {singleBooking.customer.name || 'N/A'}</Label>
+                </div>
+                <div>
+                  <Label>{t("Customer Phone")}: {singleBooking.customer.phone || 'N/A'}</Label>
+                </div>
+
+                {/* Cost && Sell Price && fees */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   <div>
-                    <Label>{t("Customer Name")}: {singleBooking.customer.name || 'N/A'}</Label>
+                    <Label className="font-medium">{t("Cost")}: {singleBooking.cost || 'N/A'}</Label>
                   </div>
                   <div>
-                    <Label>{t("Customer Phone")}: {singleBooking.customer.phone || 'N/A'}</Label>
+                    <Label className="font-medium">{t("Fees")}: {singleBooking.fees || 'N/A'}</Label>
                   </div>
                   <div>
-                    <Label>{t("Booking ID")}: {singleBooking.id}</Label>
+                    <Label className="font-medium">{t("Sell Price")}: {singleBooking.sell_price || 'N/A'}</Label>
                   </div>
+                </div>
+
+                {/* Status Reservation */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+
                   <div>
-                    <Label>{t("Status")}: {singleBooking.status}</Label>
+                    <Label className="font-medium">{t("Booking Status")}: {singleBooking.status || 'N/A'}</Label>
                   </div>
+                  {
+                    singleBooking.status === 'Cancelled' && (<div>
+                      <Label className="font-medium">{t("Reason Cancelled")}: {singleBooking.reason_cancelled || 'N/A'}</Label>
+                    </div>)
+                  }
+                </div>
+                {/* Notes */}
+                <div>
+                  <Label className="font-medium">{t("Notes")}: {singleBooking.notes || 'N/A'}</Label>
                 </div>
 
                 {/* Details Type Of Booking Seven */}

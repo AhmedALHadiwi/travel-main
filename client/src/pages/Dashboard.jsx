@@ -20,6 +20,7 @@ import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../contexts/AuthContext';
+import { useShift } from "@/contexts/ShiftContext";
 
 const Dashboard = () => {
     const { t } = useLanguage();
@@ -41,8 +42,21 @@ const Dashboard = () => {
     const [shiftFilter, setShiftFilter] = useState('today');
     const [shiftDateRange, setShiftDateRange] = useState({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
     const [filteredShifts, setFilterShifts] = useState([]);
+    const { shiftState } = useShift();
     const API_BASE = 'http://travel-server.test/api';
+    const statusLabels = {
+        not_started: "Offline",
+        active: "Online",
+        on_break: "On Break",
+        ended: "Ended",
+    };
 
+    const statusColors = {
+        not_started: "text-gray-500",
+        active: "text-green-600",
+        on_break: "text-yellow-600",
+        ended: "text-red-600",
+    };
     const statusMap = {
         approved: { text: t('approved'), color: 'text-green-500' },
         pending: { text: t('pending'), color: 'text-yellow-500' },
@@ -370,6 +384,7 @@ const Dashboard = () => {
         { header: t('netTime'), accessor: row => formatNetTime(row) },
     ];
 
+
     return (
         <>
             <Helmet><title>{t('dashboard')} - {t('companyName')}</title></Helmet>
@@ -399,8 +414,14 @@ const Dashboard = () => {
                                             {statusMap[emp.current_status]?.icon}
                                             <span>{statusMap[emp.current_status]?.text}</span>
                                         </div> */}
-                                        <span className={`capitalize text-xs px-2 py-1 rounded-full flex items-center gap-1 ${emp.status === 'active' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
+                                        {/* <span className={`capitalize text-xs px-2 py-1 rounded-full flex items-center gap-1 ${emp.status === 'active' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
                                             {emp.status === 'active' ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}{emp.status}
+                                        </span> */}
+                                        <span className={`font-semibold ${statusColors[shiftState.status]}`}>
+
+                                            {statusLabels[shiftState.status]}
+
+
                                         </span>
                                     </li>
                                 ))}

@@ -11,6 +11,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
+
 const timezones = [
   { value: 'UTC-12:00', label: '(UTC-12:00) International Date Line West' },
   { value: 'UTC-11:00', label: '(UTC-11:00) Coordinated Universal Time-11' },
@@ -55,7 +56,12 @@ const GeneralSettings = ({ settings, setSettings }) => {
 
   return (
     <Card>
-      <CardHeader><CardTitle className="flex items-center space-x-2"><Icons.Wrench className="h-5 w-5" /><span>{t('generalSettings')}</span></CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <Icons.Wrench className="h-5 w-5" />
+          <span>{t('generalSettings')}</span>
+        </CardTitle>
+      </CardHeader>
       <CardContent className="space-y-4">
         {user.role.name === 'admin' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -63,8 +69,17 @@ const GeneralSettings = ({ settings, setSettings }) => {
               <Label htmlFor="timezone">{t('timezone')}</Label>
               <Popover open={openTimezone} onOpenChange={setOpenTimezone}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" aria-expanded={openTimezone} className="w-full justify-between">
-                    <span className="truncate">{settings.general.timezone ? timezones.find(tz => tz.value === settings.general.timezone)?.label : "Select timezone..."}</span>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openTimezone}
+                    className="w-full justify-between"
+                  >
+                    <span className="truncate">
+                      {settings.general.timezone
+                        ? timezones.find(tz => tz.value === settings.general.timezone)?.label
+                        : "Select timezone..."}
+                    </span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
@@ -78,11 +93,18 @@ const GeneralSettings = ({ settings, setSettings }) => {
                           key={tz.value}
                           value={tz.label}
                           onSelect={() => {
-                            setSettings(s => ({ ...s, general: { ...s.general, timezone: tz.value } }));
+                            setSettings({
+                              general: { ...settings.general, timezone: tz.value },
+                            });
                             setOpenTimezone(false);
                           }}
                         >
-                          <Check className={cn("mr-2 h-4 w-4", settings.general.timezone === tz.value ? "opacity-100" : "opacity-0")} />
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              settings.general.timezone === tz.value ? "opacity-100" : "opacity-0"
+                            )}
+                          />
                           {tz.label}
                         </CommandItem>
                       ))}
@@ -93,10 +115,23 @@ const GeneralSettings = ({ settings, setSettings }) => {
             </div>
             <div>
               <Label htmlFor="currency">{t('currency')}</Label>
-              <Select value={settings.general.currency} onValueChange={(val) => setSettings(s => ({ ...s, general: { ...s.general, currency: val } }))}>
-                <SelectTrigger id="currency"><SelectValue placeholder="Select a currency" /></SelectTrigger>
+              <Select
+                value={settings.general.currency}
+                onValueChange={(val) =>
+                  setSettings({
+                    general: { ...settings.general, currency: val },
+                  })
+                }
+              >
+                <SelectTrigger id="currency">
+                  <SelectValue placeholder="Select a currency" />
+                </SelectTrigger>
                 <SelectContent>
-                  {currencies.map(c => <SelectItem key={c.code} value={c.code}>{t(c.code)} ({c.code})</SelectItem>)}
+                  {currencies.map(c => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {t(c.code)} ({c.code})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

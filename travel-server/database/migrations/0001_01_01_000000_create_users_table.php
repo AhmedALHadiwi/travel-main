@@ -28,8 +28,8 @@ return new class extends Migration
             $table->string('password');
             $table->rememberToken();
             $table->foreignId('role_id')->nullable()->constrained('roles')->nullOnDelete();
-            $table->decimal('salary');
-            $table->string('payment_method');
+            // $table->decimal('salary');
+            // $table->string('payment_method');
             $table->timestamps();
             $table->softDeletes(); // ← هنا أضفت عمود deleted_at للسوفت ديليت
 

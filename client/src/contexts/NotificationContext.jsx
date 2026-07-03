@@ -1,6 +1,6 @@
 // src/contexts/NotificationContext.jsx
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
-import echo from "@/echo";
+// import echo from "@/echo";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";

@@ -37,8 +37,8 @@ class User extends Authenticatable
         'role_id',
         'bio',
         'avatar_url',
-        'salary',
-        'payment_method',
+        // 'salary',
+        // 'payment_method',
     ];
 
 
