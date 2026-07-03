@@ -188,7 +188,7 @@ const Sidebar = ({ onClose }) => {
       >
         <Icon className="h-5 w-5 flex-shrink-0" />
         <span className="font-medium text-sm flex-1">
-          {t(item.label.toLowerCase().replace(/ /g, '')) || item.label}
+          {t(item.label) || item.label}
         </span>
       </NavLink>
     );
@@ -210,7 +210,7 @@ const Sidebar = ({ onClose }) => {
             <div className="w-10 h-10 bg-primary rounded-lg relative overflow-hidden flex items-center justify-center">
               {company?.settings?.logo ? (
                 <img
-                  src={`/${company.settings.logo}`}
+                  src={`${company.settings.logo}`}
                   alt="logo"
                   className="absolute inset-0 w-full h-full object-cover"
                 />

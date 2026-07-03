@@ -229,16 +229,26 @@ export const CompanyProvider = ({ children }) => {
     }, [loadCompanyData]);
 
     // Update company settings
-    const updateCompanySettings = useCallback(async (newSettings) => {
+    // Update company settings
+    const updateCompanySettings = useCallback(async (newShiftSettings) => {
         try {
             const companyId = getCompanyId();
+
             const response = await apiRequest(`/company/${companyId}/settings`, {
                 method: 'PATCH',
-                body: JSON.stringify(newSettings),
+                body: JSON.stringify({
+                    shiftSettings: newShiftSettings, // ✅ ركّز هنا
+                }),
             });
 
             if (response.success) {
-                setCompany(response.data);
+                setCompany(prev => ({
+                    ...prev,
+                    settings: {
+                        ...prev.settings,
+                        shiftSettings: response.data.shiftSettings, // ✅ تحديث من الباك
+                    },
+                }));
                 return { success: true };
             } else {
                 throw new Error(response.message || 'Failed to update settings');
@@ -250,7 +260,13 @@ export const CompanyProvider = ({ children }) => {
             if (process.env.NODE_ENV === 'development') {
                 setCompany(prev => ({
                     ...prev,
-                    settings: { ...prev.settings, ...newSettings }
+                    settings: {
+                        ...prev.settings,
+                        shiftSettings: {
+                            ...prev.settings.shiftSettings,
+                            ...newShiftSettings, // ✅ merge في الديف
+                        },
+                    },
                 }));
                 return { success: true };
             }
@@ -258,6 +274,7 @@ export const CompanyProvider = ({ children }) => {
             return { success: false, error: error.message };
         }
     }, []);
+
 
     // Update navigation
     const updateNavigation = useCallback(async (newNav) => {

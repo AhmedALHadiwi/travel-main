@@ -23,7 +23,11 @@ class ReservationController extends Controller
      */
     public function index()
     {
+<<<<<<< HEAD
         $reservations = Reservation::with('customer', 'reservable')->get()->each(function ($reservation) {
+=======
+        $reservations = Reservation::with('customer', 'reservable','supplier')->get()->each(function ($reservation) {
+>>>>>>> upstream/main
             $reservation->reservable_type = str_replace('App\\Models\\', '', $reservation->reservable_type);
         });
         return response()->json($reservations, 200);
@@ -40,18 +44,33 @@ class ReservationController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+     public function store(Request $request)
     {
         // return $request;
         $request->validate([
             'name' => 'required|string|max:255',
             'phoneNumber' => 'required|string|max:20',
+<<<<<<< HEAD
             'type' => 'required|string|max:50|in:Flight,Hotel,Cruise,Transportation,Visa,Insurance,Tickets,Appointment',
+=======
+            'type' => 'required|string|max:50|in:Flight,Hotel,Cruise,Transportation,Visa,Insurance,Ticket,Appointment',
+            'status' => 'string|in:Hold,Issued,Cancelled',
+            'notes' => 'nullable|string|min:3|max:100',
+            'reason_cancelled' => 'nullable|string',
+            // Supllier fields
+            'supplierName' => 'required|string|max:255',
+                'payment_status' => 'sometimes|string|in:Paid,Unpaid,Confirmed,Pending,Cancelled,Approved,Rejected,Scheduled,Completed,Active,Expired',
+            'details.sell_price' => 'required|numeric|min:1',
+            'details.cost' => 'required|numeric',
+            'details.fees' => 'nullable|numeric',
+            'net_profit' => 'nullable|numeric',
+>>>>>>> upstream/main
         ]);
         $customer = Customer::Create(
             [
                 'name' => $request->name,
                 'phone' => $request->phoneNumber,
+
             ]
         );
         $type = $request->type;
@@ -136,7 +155,11 @@ class ReservationController extends Controller
                 break;
             case 'Transportation':
                 $request->validate([
+<<<<<<< HEAD
                     'type' => 'required|string|max:50',
+=======
+                    'transport_type' => 'required|string|max:50',
+>>>>>>> upstream/main
                     'transportationDate' => 'required|date',
                     'pickupLocation' => 'required|string|max:255',
                     'dropoffLocation' => 'required|string|max:255',
@@ -148,7 +171,11 @@ class ReservationController extends Controller
                 ]);
 
                 $transport = new \App\Models\Transportation();
+<<<<<<< HEAD
                 $transport->transport_type = $request->type;
+=======
+                $transport->transport_type = $request->transport_type;
+>>>>>>> upstream/main
                 $transport->transportationDate = $request->transportationDate;
                 $transport->pickup_location = $request->pickupLocation;
                 $transport->dropoff_location = $request->dropoffLocation;
@@ -246,27 +273,35 @@ class ReservationController extends Controller
                 return response()->json(['error' => 'Invalid type'], 400);
         }
 
+<<<<<<< HEAD
         if (in_array($type, ['Flight', 'Hotel', 'Cruise', 'Tickets', 'Transportation'])) {
             $request->validate([
                 'supplierName' => 'required|string|max:255',
                 'payment_status' => 'sometimes|string|in:Paid,Unpaid,Partial',
+=======
+        // if (in_array($type, ['Flight', 'Hotel', 'Cruise', 'Tickets', 'Transportation'])) {
+            $request->validate([
+                // 'supplierName' => 'required|string|max:255',
+                // 'payment_status' => 'sometimes|string|in:Paid,Unpaid,Confirmed,Pending,Cancelled,Approved,Rejected,Scheduled,Completed,Active,Expired',
+>>>>>>> upstream/main
             ]);
             $supplier = new \App\Models\Supplier();
             $supplier->name = $request->supplierName;
             $supplier->phone = $request->SupplierPhoneNumber ?? '012000000012';
             $supplier->payment_status = $request->payment_status ?? 'Unpaid';
             $supplier->save();
-        }
+        // }
 
-        $request->validate([
-            // 'reservable_type' => 'required|string|max:50',
-            'status' => 'string|in:Hold,Issued,Cancelled',
-            'notes' => 'nullable|string',
-            'details.sell_price' => 'required|numeric',
-            'details.cost' => 'required|numeric',
-            'details.fees' => 'nullable|numeric',
-            'net_profit' => 'nullable|numeric',
-        ]);
+        // $request->validate([
+        //     // 'reservable_type' => 'required|string|max:50',
+        //     'status' => 'string|in:Hold,Issued,Cancelled',
+        //     'notes' => 'nullable|string',
+        //     'reason_cancelled' => 'nullable|string',
+        //     'details.sell_price' => 'required|numeric|min:1',
+        //     'details.cost' => 'required|numeric',
+        //     'details.fees' => 'nullable|numeric',
+        //     'net_profit' => 'nullable|numeric',
+        // ]);
         $reservation = new Reservation();
         $reservation->user_id = auth()->id(); // Assuming you have authentication set up
         $reservation->customer_id = $customer->id;
@@ -280,6 +315,7 @@ class ReservationController extends Controller
         $reservation->fees = $request->details['fees'] ?? 0;
         $reservation->net_profit = $request->net_profit ?? ($reservation->sell_price - $reservation->cost - $reservation->fees);
         $reservation->notes = $request->notes;
+        $reservation->reason_cancelled = $request->reason_cancelled;
         $reservation->save();
 
         $reservation = $reservation->with('customer', 'reservable')->where('id', $reservation->id)->first();
@@ -291,12 +327,13 @@ class ReservationController extends Controller
 
     }
 
+
     /**
      * Display the specified resource.
      */
-    public function show($id)
+      public function show($id)
     {
-        $reservation = Reservation::findOrFail($id);
+        $reservation = Reservation::with('customer','reservable', 'supplier')->get()->findOrFail($id);
 
         $reservation->with('customer', 'reservable');
         if (!$reservation) {
@@ -305,19 +342,9 @@ class ReservationController extends Controller
         return response()->json($reservation, 200);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Reservation $reservation)
-    {
-        //
-    }
 
-    /**
-     * Update the specified resource in storage.
-     */
-
-    public function update(Request $request, $id)
+   
+      public function update(Request $request, $id)
     {
         $reservation = Reservation::findOrFail($id);
 
@@ -325,7 +352,22 @@ class ReservationController extends Controller
         $request->validate([
             'name' => 'sometimes|string|max:255',
             'phoneNumber' => 'sometimes|string|max:20',
+<<<<<<< HEAD
             'type' => 'sometimes|string|max:50|in:Flight,Hotel,Cruise,Transportation,Visa,Insurance,Tickets,Appointment',
+=======
+            'type' => 'sometimes|string|max:50|in:Flight,Hotel,Cruise,Transportation,Visa,Insurance,Ticket,Appointment',
+            // Supplier fields (same as store)
+              'supplierName' => 'sometimes|string|max:255',
+                'payment_status' => 'sometimes|string|in:Paid,Unpaid,Confirmed,Pending,Cancelled,Approved,Rejected,Scheduled,Completed,Active,Expired',
+            // Reservation fields
+                 'details.sell_price' => 'sometimes|numeric',
+            'details.cost' => 'sometimes|numeric',
+            'details.fees' => 'nullable|numeric',
+            'status' => 'string|in:Hold,Issued,Cancelled',
+            'net_profit' => 'nullable|numeric',
+            'notes' => 'nullable|string',
+            'reason_cancelled' => 'nullable|string',
+>>>>>>> upstream/main
 
         ]);
         $reservation->customer->update([
@@ -420,12 +462,20 @@ class ReservationController extends Controller
                     'dropoffLocation' => 'sometimes|string|max:255',
                     'routeTo' => 'sometimes|string|max:255',
                     'routeFrom' => 'sometimes|string|max:255',
+<<<<<<< HEAD
                     'passengerCount' => 'sometimes|integer|min:1',
+=======
+                    'passengerCount' => 'sometimes|min:1',
+>>>>>>> upstream/main
                     'notes' => 'nullable|string',
 
                 ]);
                 $transport = Transportation::find($reservable_id);
+<<<<<<< HEAD
                 $transport->transport_type = $request->type ?? $transport->transport_type;
+=======
+                $transport->transport_type = $request->transport_type ?? $transport->transport_type;
+>>>>>>> upstream/main
                 $transport->transportationDate = $request->transportationDate ?? $transport->transportationDate;
                 $transport->pickup_location = $request->pickupLocation ?? $transport->pickup_location;
                 $transport->dropoff_location = $request->dropoffLocation ?? $transport->dropoff_location;
@@ -478,7 +528,10 @@ class ReservationController extends Controller
                 $request->validate([
                     'event' => 'sometimes|string|max:255',
                     'eventDate' => 'sometimes|date',
+<<<<<<< HEAD
                     'status' => 'string|max:50|in:Confirmed,Pending,Cancelled',
+=======
+>>>>>>> upstream/main
                     'ticketCount' => 'sometimes|integer|min:1',
                     'quantity' => 'sometimes|integer|min:1',
                     'seatcategory' => 'sometimes|string|max:50',
@@ -514,6 +567,7 @@ class ReservationController extends Controller
         }
 
         // Supplier update
+<<<<<<< HEAD
         if (in_array($type, ['Flight', 'Hotel', 'Cruise', 'Ticket', 'Transportation'])) {
             $request->validate([
                 'supplierName' => 'sometimes|string|max:255',
@@ -537,6 +591,32 @@ class ReservationController extends Controller
             'status' => 'string|in:Hold,Issued,Cancelled',
             'net_profit' => 'nullable|numeric',
             'notes' => 'nullable|string',
+=======
+        // if (in_array($type, ['Flight', 'Hotel', 'Cruise', 'Ticket', 'Transportation'])) {
+            $request->validate([
+                // 'supplierName' => 'sometimes|string|max:255',
+                // // 'phoneNumber' => 'sometimes|string|max:20',
+                // 'payment_status' => 'sometimes|string|in:Paid,Unpaid,Confirmed,Pending,Cancelled,Approved,Rejected,Scheduled,Completed,Active,Expired'
+            ]);
+        
+            $supplier = \App\Models\Supplier::find($reservation->supplier_id);
+            if ($supplier) {
+             $supplier->name = $request->supplierName ?? $supplier->name;
+            //  $supplier->phone = $request->phoneNumber ?? $supplier->phone;
+             $supplier->payment_status = $request->payment_status ?? $supplier->payment_status;
+             $supplier->save();
+                    }
+
+        // Update reservation values
+        $request->validate([
+            // 'details.sell_price' => 'sometimes|numeric',
+            // 'details.cost' => 'sometimes|numeric',
+            // 'details.fees' => 'nullable|numeric',
+            // 'status' => 'string|in:Hold,Issued,Cancelled',
+            // 'net_profit' => 'nullable|numeric',
+            // 'notes' => 'nullable|string',
+            // 'reason_cancelled' => 'nullable|string',
+>>>>>>> upstream/main
         ]);
         $reservation->update([
             'sell_price' => $request->details['sell_price'] ?? $reservation->sell_price,
@@ -549,12 +629,22 @@ class ReservationController extends Controller
             ),
             'status' => $request->status ?? $reservation->status,
             'notes' => $request->notes ?? $reservation->notes,
+<<<<<<< HEAD
+=======
+            // =============================================================================
+            // 'reason_cancelled' => $request->reason_cancelled ?? $reservation->reason_cancelled,
+>>>>>>> upstream/main
         ]);
 
         $updatedReservation = Reservation::with('customer', 'reservable')->find($reservation->id);
-        return response()->json(['message' => 'Reservation updated successfully', 'reservation' => $updatedReservation], 200);
+        if($updatedReservation){
+            return response()->json(['message' => 'Reservation updated successfully', 'reservation' => $updatedReservation], 200);
+        } else {
+            return response()->json(['error' => 'Failed to update reservation'], 500);
+        }
     }
 
+<<<<<<< HEAD
 
     public function update_status(Request $request, $id)
     {
@@ -567,6 +657,19 @@ class ReservationController extends Controller
             'status' => $request->status ?? $reservation->status,
         ]);
 
+=======
+    public function update_status(Request $request, $id)
+    {
+        $reservation = Reservation::findOrFail($id);
+        // return $request;
+        $request->validate( [
+            'status' => 'string|in:Hold,Issued,Cancelled',
+        ]);
+        $reservation->update([
+            'status' => $request->status ?? $reservation->status,
+        ]);
+
+>>>>>>> upstream/main
         if ($reservation->status === $request->status) {
             return response()->json(['message' => 'Reservation updated successfully', 'reservation' => $reservation], 200);
         } else {
@@ -574,6 +677,52 @@ class ReservationController extends Controller
         }
 
     }
+<<<<<<< HEAD
+=======
+// Api To Senf Reaason Calncelled
+public function cancel(Request $request, $id)
+{
+    $reservation = Reservation::findOrFail($id);
+
+    $request->validate([
+        'reason_cancelled' => 'required|string|max:255',
+    ]);
+
+    $reservation->status = 'Cancelled';
+    $reservation->reason_cancelled = $request->reason_cancelled;
+    $reservation->save();
+
+    return response()->json([
+        'message' => 'Reservation cancelled successfully',
+        'reservation' => $reservation,
+    ], 200);
+}
+// Send Reservation Api To Send Resrvation To AccountingDashboard
+public function sendReservation($id)
+{
+    $reservation = Reservation::findOrFail($id);
+    $reservation->sent = true;
+    $reservation->save();
+    
+    return response()->json([
+        'message' => 'Reservation sent successfully',
+        'reservation' => $reservation
+    ]);
+}
+
+// public function getSentReservations(Request $request)
+// {
+//     // $reservations = Reservation::with('customer')
+//     //     ->where('sent', true)
+//     //     ->get();
+    
+//   $reservations = Reservation::with('customer', 'reservable','supplier')->get()->where('sent', true)->each(function ($reservation) {
+//             $reservation->reservable_type = str_replace('App\\Models\\', '', $reservation->reservable_type);
+//         });
+//         return response()->json($reservations, 200);}
+
+// لإرسال الحجز (من صفحة My Reservations)
+>>>>>>> upstream/main
 
     /**
      * Remove the specified resource from storage.
@@ -601,3 +750,6 @@ class ReservationController extends Controller
         return response()->json(['message' => 'Reservation soft deleted successfully'], 200);
     }
 }
+
+
+ 

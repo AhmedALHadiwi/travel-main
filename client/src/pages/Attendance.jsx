@@ -10,6 +10,7 @@ import { format, endOfDay, isAfter, startOfMonth, endOfMonth, startOfDay, getDay
 import ShiftControls from '@/components/attendance/ShiftControls';
 import AttendanceCalendar from '@/components/attendance/AttendanceCalendar';
 import ShiftDetailsModal from '@/components/attendance/ShiftDetailsModal';
+import { useShift } from "@/contexts/ShiftContext";
 
 const API_BASE = "http://travel-server.test/api";
 
@@ -18,15 +19,7 @@ const Attendance = () => {
   const user = JSON.parse(sessionStorage.getItem('user'));
   const { company } = useCompany();
 
-  const [shiftState, setShiftState] = useState({
-    id: null,
-    status: 'not_started',
-    startTime: null,
-    endTime: null,
-    breakStartTime: null,
-    totalBreakSeconds: 0,
-    activeBreakId: null,
-  });
+  const { shiftState, setShiftState } = useShift();
 
   const [shiftCount, setShiftCount] = useState(0);
   const [lastShiftDuration, setLastShiftDuration] = useState(0);

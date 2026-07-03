@@ -154,4 +154,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reservations/{id}', [ReservationController::class, 'show']);
     Route::put('/reservations/{id}', [ReservationController::class, 'update']);
     Route::delete('/reservations/{id}', [ReservationController::class, 'destroy']);
+    // routes/api.php
+Route::post('/reservations/{id}/cancel', [ReservationController::class, 'cancel']);
+Route::post('/reservations/{id}/send', [ReservationController::class, 'sendReservation']);
+Route::get('/reservations/sent', [ReservationController::class, 'getSentReservations']);
 });
